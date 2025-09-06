@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <title>Sign In</title> <!-- FR: Titre de l'onglet du navigateur (affiché) -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="icon" type="image/png" href="images/icons/favicon.ico"/>
+  <link rel="stylesheet" href="vendor/bootstrap/css/bootstrap.min.css">
+  <link rel="stylesheet" href="fonts/font-awesome-4.7.0/css/font-awesome.min.css">
+  <link rel="stylesheet" href="fonts/Linearicons-Free-v1.0.0/icon-font.min.css">
+  <link rel="stylesheet" href="vendor/animate/animate.css">
+  <link rel="stylesheet" href="vendor/css-hamburgers/hamburgers.min.css">
+  <link rel="stylesheet" href="vendor/animsition/css/animsition.min.css">
+  <link rel="stylesheet" href="vendor/select2/select2.min.css">
+  <link rel="stylesheet" href="vendor/daterangepicker/daterangepicker.css">
+  <link rel="stylesheet" href="css/util.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/custom.css"><!-- FR: Fichier d'overrides CSS -->
+</head>
+<body>
+  <div class="limiter">
+    <!-- FR: Conteneur avec image de fond -->
+    <div class="container-login100" style="background-image: url('images/Gymbackground.jpg');">
+      <div class="wrap-login100 p-t-30 p-b-50">
+        <!-- FR: Titre du formulaire (visible) -->
+        <span class="login100-form-title p-b-41">Sign In</span>
+
+        <!-- Bandeau d'erreur -->
+        <!-- FR: Zone où seront injectés les messages d'erreur -->
+        <div id="errorBox" class="mb-3"></div>
+
+        <!-- FR: Formulaire de connexion ; action backend conservée -->
+        <form class="login100-form validate-form p-b-33 p-t-5" action="/MyGym/backend/login.php" method="post">
+          <!-- FR: Champ identifiant ; message de validation traduit car affiché -->
+          <div class="wrap-input100 validate-input" data-validate="Username required">
+            <input class="input100" type="text" name="username" placeholder="Username or Email" required>
+            <span class="focus-input100" data-placeholder="&#xe82a;"></span>
+          </div>
+
+          <!-- FR: Champ mot de passe ; message de validation traduit -->
+          <div class="wrap-input100 validate-input" data-validate="Password required">
+            <input class="input100" type="password" name="pass" placeholder="Password" required>
+            <span class="focus-input100" data-placeholder="&#xe80f;"></span>
+          </div>
+
+          <!-- FR: Bouton d’envoi -->
+          <div class="container-login100-form-btn m-t-32">
+            <button class="login100-form-btn">Sign in</button>
+          </div><br>
+
+          <!-- FR: Liens secondaires (inscription, retour à l'accueil) -->
+          <div class="text-center p-t-20">
+            <span style="color:#000;">Don't have an account? </span>
+            <a href="register.html" style="color:#ff4b5c; font-weight:bold;">Create an account</a>
+            <br>
+            <br>
+            <a href="../index.html" style="color:  #000000; font-weight:bold;">Home</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- FR: Dépendances JS (inchangées) -->
+  <script src="vendor/jquery/jquery-3.2.1.min.js"></script>
+  <script src="vendor/animsition/js/animsition.min.js"></script>
+  <script src="vendor/bootstrap/js/popper.js"></script>
+  <script src="vendor/bootstrap/js/bootstrap.min.js"></script>
+  <script src="vendor/select2/select2.min.js"></script>
+  <script src="vendor/daterangepicker/moment.min.js"></script>
+  <script src="vendor/daterangepicker/daterangepicker.js"></script>
+  <script src="vendor/countdowntime/countdowntime.js"></script>
+  <script src="js/main.js"></script>
+
+  <!-- Affichage des erreurs -->
+  <!-- FR: Lit le paramètre ?error= dans l'URL et affiche un message utilisateur -->
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const error = params.get("error");
+    if (error) {
+      const box = document.getElementById("errorBox");
+      const map = {
+        empty: '❌ Please fill out all fields.',
+        notfound: '❌ Account not found.',
+        disabled: '⛔ Account disabled.',
+        wrongpass: '❌ Incorrect password.',
+        login_required: '🔒 Please sign in to access this page.',
+        logged_out: '👋 You have been signed out.',
+        session_expired: '⏳ Session expired, please sign in again.'
+      };
+      box.innerHTML = `<div class="alert alert-danger text-center">${map[error] || '⚠️ Unknown error.'}</div>`;
+    }
+  </script>
+</body>
+</html>
