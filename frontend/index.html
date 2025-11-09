@@ -1,92 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>MyGym — Home</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- mêmes assets que contact -->
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-<div class="wrapper inner">
-  <!-- Navbar identique -->
-  <nav class="navbar">
-    <img class="logo" src="logo.png" alt="MyGym logo">
-    <ul>
-      <li><a class="active" href="index.html">Home</a></li>
-      <li><a href="about.html">About us</a></li> <!-- changé de "About" -->
-      <li><a href="services.html">Our Services</a></li> <!-- changé de "Services" -->
-      <li><a href="contact.html">Contact us</a></li> <!-- changé de "Contact" -->
-    </ul>
-  </nav>
-
-  <!-- Hero principal avec background -->
-  <header class="page-hero home-hero">
-    <h1 style="color:rgb(0, 0, 0);margin-top:-350px;" >
-      Welcome to <span style="color:red;margin-top:-90px;">MyGym</span>
-    </h1> <!-- changé "Welcome MyGym" -> "Welcome to MyGym" -->
-    <br>
-    <br>
-    <br>
-    <!-- CTA centrés -->
-    <div class="cta-group">
-      <a class="btn btn-primary" href="/MyGym/frontend/login/login.html">Sign in</a> <!-- changé "Login" -->
-      <a class="btn btn-outline" href="/MyGym/frontend/login/register.html">Sign up</a> <!-- changé "Register" -->
-    </div>
-  </header>
-</div>
-
-<!-- même JS si besoin -->
-<script src="script.js"></script>
-
-<!-- Style -->
-<style>
-  .home-hero {
-    background: url('picbackgrnd.jpg') center/cover no-repeat;
-    min-height: 100vh; /* occupe tout l'écran */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    color: #fff;
-  }
-
-  .page-hero {
-    text-align: center;
-    padding: 4rem 1rem;
-  }
-  .cta-group {
-    margin-top: 1.5rem;
-    display: inline-flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .btn {
-    display: inline-block;
-    padding: 0.85rem 1.6rem;
-    border-radius: 999px;
-    text-decoration: none;
-    font-weight: 600;
-    letter-spacing: .3px;
-    transition: 0.2s;
-  }
-  .btn-primary {
-    background: #ff4b5c;
-    color: #fff;
-    border: 2px solid #ff4b5c;
-  }
-  .btn-primary:hover { background: #e63648; border-color: #e63648; }
-  .btn-outline {
-    border: 2px solid #fff;
-    color: #fff;
-    background: transparent;
-  }
-  .btn-outline:hover {
-    background: #fff;
-    color: #111;
-  }
-</style>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <title>MyGym • Performance Platform</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <meta name="theme-color" content="#dc2626" />
+  </head>
+  <body class="bg-bg">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

@@ -6,14 +6,14 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-  header('Location: /MyGym/frontend/login/login.html?error=login_required'); exit;
+  header('Location: /MyGym/login.php?error=login_required'); exit;
 }
 
 $identifier = trim($_POST['username'] ?? ''); // username OU email
 $pass       = (string)($_POST['pass'] ?? '');
 
 if ($identifier === '' || $pass === '') {
-  header('Location: /MyGym/frontend/login/login.html?error=empty'); exit;
+  header('Location: /MyGym/login.php?error=empty'); exit;
 }
 
 $sql = "SELECT id, fullname, username, email, password_hash, role, is_active
@@ -26,13 +26,13 @@ $st->execute([':u'=>$identifier, ':e'=>$identifier]); // <-- deux paramètres di
 $u = $st->fetch(PDO::FETCH_ASSOC);
 
 if (!$u) {
-  header('Location: /MyGym/frontend/login/login.html?error=notfound'); exit;
+  header('Location: /MyGym/login.php?error=notfound'); exit;
 }
 if (isset($u['is_active']) && (int)$u['is_active'] === 0) {
-  header('Location: /MyGym/frontend/login/login.html?error=disabled'); exit;
+  header('Location: /MyGym/login.php?error=disabled'); exit;
 }
 if (!password_verify($pass, (string)$u['password_hash'])) {
-  header('Location: /MyGym/frontend/login/login.html?error=wrongpass'); exit;
+  header('Location: /MyGym/login.php?error=wrongpass'); exit;
 }
 
 $u['role'] = normalize_role($u['role'] ?? 'MEMBER');

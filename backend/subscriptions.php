@@ -2,18 +2,18 @@
 declare(strict_types=1);
 
 /**
- * Fonctions abonnement (BACKEND UNIQUEMENT)
+ * Subscription functions (BACKEND ONLY)
  * Tables:
  *  - plans(id, code, name, price_cents, features)
  *  - subscriptions(id, user_id, plan_id, status, start_date, end_date, approved_by, created_at)
- * Statuts: PENDING | ACTIVE | CANCELLED | EXPIRED
+ * Statuses: PENDING | ACTIVE | CANCELLED | EXPIRED
  */
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
   session_start();
 }
 
-/** retourne la souscription ACTIVE en cours, sinon null */
+/** Returns current ACTIVE subscription, otherwise null */
 function get_active_subscription(PDO $pdo, int $userId): ?array {
   $stmt = $pdo->prepare("
     SELECT s.*, p.name AS plan_name, p.code AS plan_code, p.price_cents
@@ -31,12 +31,12 @@ function get_active_subscription(PDO $pdo, int $userId): ?array {
   return $row ?: null;
 }
 
-/** true si membre abonné actif */
+/** True if member has active subscription */
 function is_subscribed(PDO $pdo, int $userId): bool {
   return get_active_subscription($pdo, $userId) !== null;
 }
 
-/** retourne la dernière demande PENDING du user (si existe) */
+/** Returns user's latest PENDING request (if exists) */
 function get_pending_request(PDO $pdo, int $userId): ?array {
   $stmt = $pdo->prepare("
     SELECT s.*, p.name AS plan_name, p.code AS plan_code
@@ -53,7 +53,7 @@ function get_pending_request(PDO $pdo, int $userId): ?array {
 }
 
 /**
- * Retourne la souscription ACTIVE (aujourd’hui) avec plan.
+ * Returns current ACTIVE subscription (today) with plan details.
  */
 function get_current_active_with_plan(PDO $pdo, int $userId): ?array {
   $sql = "
@@ -74,11 +74,27 @@ function get_current_active_with_plan(PDO $pdo, int $userId): ?array {
 }
 
 /**
- * TRUE si l’utilisateur a accès aux cours/coach (plans PLUS/PRO), FALSE sinon (BASIC).
+ * TRUE if user has access to classes/coach (PLUS/PRO plans), FALSE otherwise (BASIC).
  */
 function has_class_access(PDO $pdo, int $userId): bool {
   $sub = get_current_active_with_plan($pdo, $userId);
   if (!$sub) return false;
   $code = strtoupper((string)($sub['plan_code'] ?? ''));
   return in_array($code, ['PLUS','PRO'], true);
+}
+
+/**
+ * Automatically marks expired subscriptions (end_date < today) as EXPIRED
+ * Returns number of updated subscriptions
+ */
+function expire_old_subscriptions(PDO $pdo): int {
+  $stmt = $pdo->prepare("
+    UPDATE subscriptions
+       SET status = 'EXPIRED'
+     WHERE status = 'ACTIVE'
+       AND end_date IS NOT NULL
+       AND end_date < CURRENT_DATE()
+  ");
+  $stmt->execute();
+  return $stmt->rowCount();
 }

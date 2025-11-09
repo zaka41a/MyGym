@@ -1,18 +1,13 @@
 <?php
 declare(strict_types=1);
-session_start();
 
 require_once __DIR__ . '/../backend/auth.php';
-requireRole('ADMIN'); // FR : page réservée à l'ADMIN
+requireRole('ADMIN');
 require_once __DIR__ . '/../backend/db.php';
 
-/* ===== Debug local (mets false en prod) =====
-   FR : utilitaire de debug local (désactivé en prod) */
 $DEBUG = false;
 if ($DEBUG) { error_reporting(E_ALL); ini_set('display_errors', '1'); }
 
-/* ===== Helpers =====
-   FR : fonctions d'aide (détection colonne, + robustesse aux schémas partiels) */
 function col_exists(PDO $pdo, string $table, string $col): bool {
   $q = $pdo->prepare("
     SELECT 1 FROM information_schema.COLUMNS
@@ -23,16 +18,12 @@ function col_exists(PDO $pdo, string $table, string $col): bool {
   return (bool)$q->fetchColumn();
 }
 
-/* ===== Période (défaut : mois courant) =====
-   FR : fenêtre temporelle filtrant les cours à afficher (GET facultatif) */
+// Period (default: current month)
 $start = new DateTime('first day of this month 00:00:00');
 $end   = new DateTime('last day of this month 23:59:59');
 if (!empty($_GET['start'])) { try { $start = new DateTime($_GET['start'].' 00:00:00'); } catch (Throwable $e) {} }
 if (!empty($_GET['end']))   { try { $end   = new DateTime($_GET['end']  .' 23:59:59'); } catch (Throwable $e) {} }
 
-/* ===== Requête tolérante =====
-   FR : construit dynamiquement le SELECT/JOINS selon colonnes disponibles
-        -> évite un crash si certaines colonnes/tables manquent */
 $sqlError = null;
 $sessions = [];
 
@@ -44,24 +35,20 @@ try {
   $hasCoachId = col_exists($pdo, 'sessions', 'coach_id');
 
   if (!$hasStart) {
-    // FR : garde-fou si la table sessions n'a pas start_at
-    throw new RuntimeException("La colonne sessions.start_at est introuvable. Vérifie la table 'sessions'.");
+    throw new RuntimeException("Column sessions.start_at not found.");
   }
 
   $select = ["s.id", "s.start_at"];
   if ($hasEnd) $select[] = "s.end_at";
   if ($hasCap) $select[] = "s.capacity";
 
-  // FR : jointure activités (si activity_id existe), sinon jointure neutre
   $select[] = "a.code AS activity_code";
   $select[] = "a.name AS activity_name";
   $joinAct = $hasActId ? "LEFT JOIN activities a ON a.id = s.activity_id" : "LEFT JOIN activities a ON 1=0";
 
-  // FR : jointure coach (si coach_id existe), sinon jointure neutre
   $select[] = "u.fullname AS coach_name";
   $joinCoach = $hasCoachId ? "LEFT JOIN users u ON u.id = s.coach_id" : "LEFT JOIN users u ON 1=0";
 
-  // FR : comptage des réservations (filtre par statut si possible)
   $hasRes       = col_exists($pdo, 'reservations', 'session_id');
   $hasResStatus = $hasRes && col_exists($pdo, 'reservations', 'status');
   $bookedSql = "0 AS booked";
@@ -72,7 +59,6 @@ try {
   }
   $select[] = $bookedSql;
 
-  // FR : requête finale, bornée par la période choisie
   $sql = "
     SELECT ".implode(",\n           ", $select)."
     FROM sessions s
@@ -90,126 +76,350 @@ try {
   $sessions = $st->fetchAll(PDO::FETCH_ASSOC);
 
 } catch (Throwable $e) {
-  // FR : capture du message d'erreur pour affichage non bloquant
   $sqlError = $e->getMessage();
   if ($DEBUG) error_log("ADMIN/courses.php SQL ERROR: ".$sqlError);
 }
 ?>
 <!DOCTYPE html>
-<html lang="fr"><!-- FR : attribut non visible, gardé tel quel -->
+<html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MyGym — Classes (Admin)</title> <!-- EN : titre page -->
-  <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
-  <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyGym — Activities & Classes</title>
+  <?php include __DIR__ . '/../shared/head-meta.php'; ?>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
   <style>
-    @import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap");
-    :root{
-      --primary:#e50914;--primary-600:#cc0812;--white:#fff;--gray:#f5f5f5;
-      --border:#e9e9e9;--black1:#222;--black2:#999;--shadow:0 7px 25px rgba(0,0,0,.08)
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    *{box-sizing:border-box;margin:0;padding:0;font-family:"Ubuntu",system-ui,Segoe UI,Roboto,sans-serif}
-    body{background:var(--gray);color:var(--black1);min-height:100vh;overflow-x:hidden}
-    .container{position:relative;width:100%}
-    .navigation{position:fixed;width:300px;height:100%;background:var(--primary);overflow:hidden;box-shadow:var(--shadow)}
-    .navigation ul{position:absolute;inset:0}
-    .navigation ul li{list-style:none}
-    .navigation ul li a{display:flex;width:100%;text-decoration:none;color:#fff;align-items:center;padding-left:10px;height:60px}
-    .navigation ul li a .icon{min-width:50px;text-align:center}
-    /* ✅ Même CSS que dans index.php */
-    .navigation ul li a .icon ion-icon{font-size:1.5rem;color:#fff}
-    .navigation ul li a .title{white-space:nowrap}
-    .navigation ul li:hover,.navigation ul li.active{background:var(--primary-600)}
-    .main{position:absolute;left:300px;width:calc(100% - 300px);min-height:100vh;background:#fff}
-    .topbar{height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border)}
-    .wrap{max-width:1200px;margin:0 auto;padding:20px}
-    .panel{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px;box-shadow:var(--shadow)}
-    .alert{padding:10px;border-radius:8px;margin-bottom:10px}
-    .err{background:#fdecea;border:1px solid #f5c6cb}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    thead td{font-weight:700}
-    tr{border-bottom:1px solid #eee}
-    td{padding:10px;vertical-align:middle}
-    .muted{color:#777}
-    @media (max-width:991px){.main{left:0;width:100%}}
+
+    body {
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0a;
+      color: #f5f7fb;
+      min-height: 100vh;
+      background: radial-gradient(55% 80% at 50% 0%, rgba(220, 38, 38, 0.22), transparent 65%),
+                  radial-gradient(60% 90% at 75% 15%, rgba(127, 29, 29, 0.18), transparent 70%),
+                  linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 1) 100%);
+    }
+
+    .container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: rgba(17, 17, 17, 0.95);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2rem 1.5rem;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      box-shadow: 0 10px 30px rgba(220,38,38,0.4);
+    }
+
+    .logo-text h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-text p {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .nav-menu {
+      list-style: none;
+      margin: 2rem 0;
+    }
+
+    .nav-item {
+      margin-bottom: 0.5rem;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      color: #9ca3af;
+      text-decoration: none;
+      border-radius: 12px;
+      transition: all 0.3s;
+      font-weight: 500;
+    }
+
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+
+    .nav-link.active {
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(220,38,38,0.3);
+    }
+
+    .nav-link ion-icon {
+      font-size: 1.25rem;
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      color: #9ca3af;
+      text-decoration: none;
+      transition: all 0.3s;
+      font-weight: 500;
+      margin-top: 2rem;
+    }
+
+    .logout-btn:hover {
+      background: rgba(220, 38, 38, 0.2);
+      color: #fff;
+      border-color: #dc2626;
+    }
+
+    /* Main Content */
+    .main-content {
+      margin-left: 280px;
+      flex: 1;
+      padding: 2rem;
+    }
+
+    .header {
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Section */
+    .section {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Alert */
+    .alert-error {
+      padding: 1rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #ef4444;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead td {
+      font-weight: 600;
+      color: #9ca3af;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.2s;
+    }
+
+    tbody tr:hover {
+      background: rgba(220, 38, 38, 0.05);
+    }
+
+    td {
+      padding: 1rem 0.75rem;
+      vertical-align: middle;
+    }
+
+    @media (max-width: 991px) {
+      .sidebar {
+        width: 0;
+        opacity: 0;
+      }
+      .main-content {
+        margin-left: 0;
+      }
+    }
   </style>
 </head>
 <body>
-<div class="container">
-  <!-- FR : Barre latérale — uniquement traduction des libellés visibles -->
-  <div class="navigation">
-    <ul>
-      <li><a href="index.php"><span class="icon"><ion-icon name="home-outline"></ion-icon></span><span class="title">Dashboard</span></a></li>
-      <li><a href="users.php"><span class="icon"><ion-icon name="people-outline"></ion-icon></span><span class="title">Users</span></a></li> <!-- EN : Utilisateurs -->
-      <li class="active"><a href="courses.php"><span class="icon"><ion-icon name="calendar-outline"></ion-icon></span><span class="title">Classes</span></a></li> <!-- EN : Cours -->
-      <li><a href="subscriptions.php"><span class="icon"><ion-icon name="card-outline"></ion-icon></span><span class="title">Subscriptions & Payments</span></a></li> <!-- EN : Abonnements & Paiements -->
-      <li><a href="/MyGym/backend/logout.php"><span class="icon"><ion-icon name="log-out-outline"></ion-icon></span><span class="title">Logout</span></a></li> <!-- EN : Déconnexion -->
-    </ul>
-  </div>
+  <div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <svg width="180" height="50" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(5, 15)">
+            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradient1)"/>
+            <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+          </g>
+          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradient)" letter-spacing="2">MyGym</text>
+          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#9ca3af" letter-spacing="3">PERFORMANCE CLUB</text>
+          <defs>
+            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="100%" stop-color="#991b1b"/>
+            </linearGradient>
+            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="50%" stop-color="#ef4444"/>
+              <stop offset="100%" stop-color="#dc2626"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
 
-  <!-- FR : En-tête de la zone principale -->
-  <div class="main">
-    <div class="topbar">
-      <div style="width:60px;text-align:center"><ion-icon name="menu-outline" style="font-size:2rem"></ion-icon></div>
-      <div style="font-weight:700;color:var(--primary)">Classes — Administration</div> <!-- EN : libellé topbar -->
-    </div>
+      <nav>
+        <ul class="nav-menu">
+          <li class="nav-item">
+            <a href="index.php" class="nav-link">
+              <ion-icon name="grid"></ion-icon>
+              <span>Dashboard</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="users.php" class="nav-link">
+              <ion-icon name="people"></ion-icon>
+              <span>Users</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="courses.php" class="nav-link active">
+              <ion-icon name="barbell"></ion-icon>
+              <span>Activities & Classes</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="subscriptions.php" class="nav-link">
+              <ion-icon name="card"></ion-icon>
+              <span>Subscriptions</span>
+            </a>
+          </li>
+        </ul>
 
-    <div class="wrap">
-      <div class="panel">
-        <h2 style="margin:0 0 8px">
-          All sessions (<?= htmlspecialchars($start->format('d/m/Y')) ?> → <?= htmlspecialchars($end->format('d/m/Y')) ?>) <!-- EN : titre bloc -->
+        <a href="/MyGym/backend/logout.php" class="logout-btn">
+          <ion-icon name="log-out"></ion-icon>
+          <span>Logout</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="header">
+        <h1>Activities & Classes</h1>
+        <p style="color: #9ca3af;">View all scheduled sessions and attendance.</p>
+      </div>
+
+      <div class="section">
+        <h2 class="section-title">
+          All Sessions (<?= htmlspecialchars($start->format('d/m/Y')) ?> → <?= htmlspecialchars($end->format('d/m/Y')) ?>)
         </h2>
 
         <?php if ($sqlError): ?>
-          <div class="alert err">SQL error: <?= htmlspecialchars($sqlError) ?></div> <!-- EN : message erreur -->
+          <div class="alert-error">SQL error: <?= htmlspecialchars($sqlError) ?></div>
         <?php endif; ?>
 
-        <!-- FR : Tableau récapitulatif des créneaux -->
-        <table>
-          <thead>
-            <tr>
-              <td style="width:140px">Date</td>
-              <td style="width:120px">Time</td>         <!-- EN : Heure -->
-              <td>Activity</td>                         <!-- EN : Activité -->
-              <td style="width:160px">Coach</td>
-              <td style="width:90px">Booked</td>        <!-- EN : Réservés -->
-              <td style="width:90px">Capacity</td>      <!-- EN : Capacité -->
-            </tr>
-          </thead>
-          <tbody>
-          <?php if (!$sessions): ?>
-            <tr><td colspan="6" class="muted" style="text-align:center">No sessions in this period.</td></tr> <!-- EN : état vide -->
-          <?php else: foreach ($sessions as $s):
-              // FR : formatages simples d'affichage
-              $date  = !empty($s['start_at']) ? (new DateTime($s['start_at']))->format('d/m/Y') : '—';
-              $heure = '—';
-              if (!empty($s['start_at'])) {
-                $sd = new DateTime($s['start_at']); $hi = $sd->format('H:i');
-                $hf = !empty($s['end_at']) ? (new DateTime($s['end_at']))->format('H:i') : '—';
-                $heure = $hi.' → '.$hf;
-              }
-              $cap   = (int)($s['capacity']      ?? 0);
-              $book  = (int)($s['booked']        ?? 0);
-              $act   = (string)($s['activity_name'] ?? '');
-              $actC  = (string)($s['activity_code'] ?? '');
-              $coach = (string)($s['coach_name']    ?? '—');
-          ?>
-            <tr>
-              <td><?= htmlspecialchars($date) ?></td>
-              <td><?= htmlspecialchars($heure) ?></td>
-              <td><?= htmlspecialchars($act) ?> <span class="muted">(<?= htmlspecialchars($actC) ?>)</span></td>
-              <td><?= htmlspecialchars($coach ?: '—') ?></td>
-              <td><?= $book ?></td>
-              <td><?= $cap ?></td>
-            </tr>
-          <?php endforeach; endif; ?>
-          </tbody>
-        </table>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <td style="width:140px">Date</td>
+                <td style="width:120px">Time</td>
+                <td>Activity</td>
+                <td style="width:160px">Coach</td>
+                <td style="width:90px">Booked</td>
+                <td style="width:90px">Capacity</td>
+              </tr>
+            </thead>
+            <tbody>
+            <?php if (empty($sessions)): ?>
+              <tr><td colspan="6" style="text-align:center;color:#9ca3af">No sessions in this period.</td></tr>
+            <?php else: foreach ($sessions as $s):
+                $date  = !empty($s['start_at']) ? (new DateTime($s['start_at']))->format('d/m/Y') : '—';
+                $heure = '—';
+                if (!empty($s['start_at'])) {
+                  $sd = new DateTime($s['start_at']); $hi = $sd->format('H:i');
+                  $hf = !empty($s['end_at']) ? (new DateTime($s['end_at']))->format('H:i') : '—';
+                  $heure = $hi.' → '.$hf;
+                }
+                $cap   = (int)($s['capacity']      ?? 0);
+                $book  = (int)($s['booked']        ?? 0);
+                $act   = (string)($s['activity_name'] ?? '');
+                $actC  = (string)($s['activity_code'] ?? '');
+                $coach = (string)($s['coach_name']    ?? '—');
+            ?>
+              <tr>
+                <td><?= htmlspecialchars($date) ?></td>
+                <td><?= htmlspecialchars($heure) ?></td>
+                <td><?= htmlspecialchars($act) ?> <span style="color:#9ca3af">(<?= htmlspecialchars($actC) ?>)</span></td>
+                <td><?= htmlspecialchars($coach ?: '—') ?></td>
+                <td><?= $book ?></td>
+                <td><?= $cap ?></td>
+              </tr>
+            <?php endforeach; endif; ?>
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
-
+    </main>
   </div>
-</div>
 </body>
 </html>

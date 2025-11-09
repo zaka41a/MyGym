@@ -3,30 +3,23 @@ declare(strict_types=1);
 
 /**
  * Admin — User management (with Photo column)
- * FR: Cette page d’admin liste/crée/édite/supprime des utilisateurs.
- * FR: Affiche l’avatar pour MEMBER/COACH si dispo, ADMIN → emplacement vide.
  */
 
-session_start();
-
 require_once __DIR__ . '/../backend/auth.php';
-requireRole('ADMIN'); // FR: accès admin uniquement
+requireRole('ADMIN');
 
 require_once __DIR__ . '/../backend/db.php';
 
-/* ===================== CSRF =====================
-   FR: Génère et stocke un token CSRF pour sécuriser les POST */
+// CSRF token
 if (empty($_SESSION['csrf'])) {
   $_SESSION['csrf'] = bin2hex(random_bytes(32));
 }
 $CSRF = $_SESSION['csrf'];
 
-/* =================== Helpers ====================
-   FR: Fonctions utilitaires d’assainissement et de normalisation des rôles */
+// Helper functions
 function sanitize_email(string $e): string { return filter_var(trim($e), FILTER_SANITIZE_EMAIL) ?: ''; }
 function sanitize_text(string $t): string  { return trim($t); }
 
-/** FR: Détecte le format de rôle attendu en BDD (MEMBRE vs MEMBER) et convertit à l’insert/update */
 function role_for_db(PDO $pdo, string $roleInput): string {
   static $expectsFr = null;
   $r = strtoupper(trim($roleInput));
@@ -42,7 +35,6 @@ function role_for_db(PDO $pdo, string $roleInput): string {
   return $r;
 }
 
-/** FR: Normalise depuis la BDD vers l’UI (ADMIN/COACH/MEMBER) */
 function role_for_ui(string $dbRole): string {
   $r = strtoupper(trim($dbRole));
   if ($r === 'MEMBRE') $r = 'MEMBER';
@@ -50,38 +42,35 @@ function role_for_ui(string $dbRole): string {
   return $r;
 }
 
-/** FR: Résout l’URL d’avatar (BDD -> fichiers -> placeholder). Admin => vide (null). */
 function avatar_url_for_user(array $u): ?string {
-  // FR: Si Admin => pas de photo affichée
-  $ru = role_for_ui((string)($u['role'] ?? 'MEMBER'));
-  if ($ru === 'ADMIN') return null;
-
-  $rootFS      = dirname(__DIR__);                // .../MyGym
+  $rootFS      = dirname(__DIR__);
   $uploadFS    = $rootFS . '/uploads/avatars';
   $uploadWeb   = '/MyGym/uploads/avatars';
 
-  // 1) FR: BDD (colonne avatar si existe)
+  // Check avatar column first
   if (!empty($u['avatar'])) {
     return $uploadWeb . '/' . basename((string)$u['avatar']) . '?t=' . time();
   }
 
-  // 2) FR: Fichiers nommés user_{id}.ext
+  // Check for user_ID.ext files
   $id = (int)($u['id'] ?? 0);
-  foreach (['jpg','png','webp'] as $ext) {
-    $p = $uploadFS . "/user_{$id}.{$ext}";
-    if (is_file($p)) return $uploadWeb . "/user_{$id}.{$ext}?t=" . time();
+  if ($id > 0) {
+    foreach (['jpg','png','webp','jpeg'] as $ext) {
+      $p = $uploadFS . "/user_{$id}.{$ext}";
+      if (is_file($p)) {
+        return $uploadWeb . "/user_{$id}.{$ext}?t=" . time();
+      }
+    }
   }
 
-  // 3) FR: Placeholder si MEMBER/COACH
-  return 'https://via.placeholder.com/40x40?text=%20';
+  // Return placeholder if no avatar found
+  return 'https://via.placeholder.com/40x40?text=U';
 }
 
-/* ================== Actions (PRG) =================
-   FR: Post/Redirect/Get avec messages ok/err via query string */
+// POST actions
 $ok  = $_GET['ok']  ?? null;
 $err = $_GET['err'] ?? null;
 
-/* FR: Détecte si la colonne avatar existe pour adapter la SELECT */
 $hasAvatarCol = (bool)$pdo->query("SHOW COLUMNS FROM users LIKE 'avatar'")->fetch();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -181,8 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 
-/* ============= Lecture + pré-remplissage =============
-   FR: Charge la liste d’utilisateurs et prépare un éventuel “edit” */
+// Load users
 if ($hasAvatarCol) {
   $stmt = $pdo->query("SELECT id, fullname, username, email, role, is_active, avatar FROM users ORDER BY id DESC");
 } else {
@@ -198,11 +186,10 @@ if (isset($_GET['edit'])) {
   }
 }
 
-/* ===================== KPIs =====================
-   FR: Compte combien d’admins/coachs/members pour les cartes */
+// KPIs
 $admins = $coachs = $members = 0;
 foreach ($users as $u) {
-  $ru = role_for_ui((string)$u['role']); // ADMIN/COACH/MEMBER
+  $ru = role_for_ui((string)$u['role']);
   if ($ru==='ADMIN')  $admins++;
   if ($ru==='COACH')  $coachs++;
   if ($ru==='MEMBER') $members++;
@@ -210,155 +197,491 @@ foreach ($users as $u) {
 
 ?>
 <!DOCTYPE html>
-<html lang="en"> <!-- FR: attribut non affiché gardé tel quel -->
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MyGym — Users</title> <!-- traduit -->
-
-  <!-- FR: Librairie d’icônes -->
-  <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
-  <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
-
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyGym — Users</title>
+  <?php include __DIR__ . '/../shared/head-meta.php'; ?>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
   <style>
-    /* FR: Styles inchangés (dashboard admin) */
-    @import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap");
-    :root{
-      --primary:#e50914;--primary-600:#cc0812;--white:#fff;--gray:#f5f5f5;--border:#e9e9e9;
-      --black1:#222;--black2:#999;--shadow:0 7px 25px rgba(0,0,0,.08);
-      --ok:#e8f5e9;--okb:#c8e6c9;--err:#fdecea;--errb:#f5c6cb
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    *{box-sizing:border-box;margin:0;padding:0;font-family:"Ubuntu",system-ui,Segoe UI,Roboto,sans-serif}
-    body{background:var(--gray);color:var(--black1);min-height:100vh;overflow-x:hidden}
-    .container{position:relative;width:100%}
 
-    /* Sidebar */
-    .navigation{position:fixed;width:300px;height:100%;background:var(--primary);overflow:hidden;box-shadow:var(--shadow)}
-    .navigation ul{position:absolute;inset:0}
-    .navigation ul li{list-style:none}
-    .navigation ul li a{display:flex;height:60px;align-items:center;color:#fff;text-decoration:none;padding-left:10px}
-    .navigation ul li a .icon{min-width:50px;text-align:center}
-    .navigation ul li a .icon ion-icon{font-size:1.5rem;color:#fff}
-    .navigation ul li a .title{white-space:nowrap}
-    .navigation ul li:hover,.navigation ul li.active{background:var(--primary-600)}
+    body {
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0a;
+      color: #f5f7fb;
+      min-height: 100vh;
+      background: radial-gradient(55% 80% at 50% 0%, rgba(220, 38, 38, 0.22), transparent 65%),
+                  radial-gradient(60% 90% at 75% 15%, rgba(127, 29, 29, 0.18), transparent 70%),
+                  linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 1) 100%);
+    }
 
-    /* Main */
-    .main{position:absolute;left:300px;width:calc(100% - 300px);min-height:100vh;background:var(--white)}
-    .topbar{height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border)}
-    .wrap{max-width:1200px;margin:0 auto;padding:20px}
+    .container {
+      display: flex;
+      min-height: 100vh;
+    }
 
-    /* Cards KPIs */
-    .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
-    .card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center}
-    .numbers{font-weight:700;font-size:1.8rem;color:var(--primary)}
-    .cardName{color:#777}
+    /* Sidebar - same as index.php */
+    .sidebar {
+      width: 280px;
+      background: rgba(17, 17, 17, 0.95);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2rem 1.5rem;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+    }
 
-    /* Panels / forms */
-    .panel{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:var(--shadow);margin-top:20px}
-    .alert{padding:10px 12px;border-radius:8px;margin:14px 0}
-    .ok{background:var(--ok);border:1px solid var(--okb)}
-    .err{background:var(--err);border:1px solid var(--errb)}
-    .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-    .form-grid .full{grid-column:1 / -1}
-    label{font-weight:600;font-size:.92rem}
-    input,select{width:100%;margin-top:6px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;outline:none}
-    input:focus,select:focus{border-color:var(--primary)}
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
 
-    /* Table users */
-    .tablewrap{overflow:auto;max-width:100%}
-    table{width:100%;border-collapse:collapse}
-    thead th{position:sticky;top:0;background:#fafafa;border-bottom:1px solid var(--border);text-align:left;font-weight:700}
-    th,td{padding:10px;border-bottom:1px solid #eee;vertical-align:middle}
-    tbody tr:nth-child(even){background:#fcfcfc}
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      box-shadow: 0 10px 30px rgba(220,38,38,0.4);
+    }
 
-    .col-id{width:70px}
-    .col-photo{width:70px;text-align:center}
-    .col-role{width:140px}
-    .col-actions{width:230px;text-align:right}
+    .logo-text h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
 
-    .thumb{width:40px;height:40px;border-radius:50%;object-fit:cover;border:1px solid #e6e6e6;display:inline-block}
-    .no-avatar{display:inline-block;width:40px;height:40px;border-radius:50%;background:#f3f3f3;border:1px dashed #ddd}
+    .logo-text p {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
 
-    .badge{padding:2px 10px;border-radius:999px;font-weight:700;display:inline-block}
-    .badge.admin{background:var(--primary);color:#fff}
-    .badge.coach{background:#111;color:#fff}
-    .badge.member{background:#ddd;color:#111}
+    .nav-menu {
+      list-style: none;
+      margin: 2rem 0;
+    }
 
-    .btn{background:var(--primary);color:#fff;border:0;border-radius:8px;padding:.45rem .9rem;font-weight:600;cursor:pointer;text-decoration:none;display:inline-block}
-    .btn--ghost{background:transparent;color:var(--primary);border:1px solid var(--primary)}
-    .btn--sm{padding:.35rem .6rem;border-radius:6px}
+    .nav-item {
+      margin-bottom: 0.5rem;
+    }
 
-    @media (max-width:991px){
-      .main{left:0;width:100%}
-      .grid4{grid-template-columns:repeat(2,1fr)}
-      .col-actions{width:170px}
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      color: #9ca3af;
+      text-decoration: none;
+      border-radius: 12px;
+      transition: all 0.3s;
+      font-weight: 500;
+    }
+
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+
+    .nav-link.active {
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(220,38,38,0.3);
+    }
+
+    .nav-link ion-icon {
+      font-size: 1.25rem;
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      color: #9ca3af;
+      text-decoration: none;
+      transition: all 0.3s;
+      font-weight: 500;
+      margin-top: 2rem;
+    }
+
+    .logout-btn:hover {
+      background: rgba(220, 38, 38, 0.2);
+      color: #fff;
+      border-color: #dc2626;
+    }
+
+    /* Main Content */
+    .main-content {
+      margin-left: 280px;
+      flex: 1;
+      padding: 2rem;
+    }
+
+    .header {
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: all 0.3s;
+    }
+
+    .stat-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(220, 38, 38, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      color: #9ca3af;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Section/Panel */
+    .section {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Alerts */
+    .alert {
+      padding: 1rem;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+    }
+
+    .alert-success {
+      background: rgba(16, 185, 129, 0.2);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #10b981;
+    }
+
+    .alert-error {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #ef4444;
+    }
+
+    /* Form */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1rem;
+    }
+
+    .form-grid .full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: #9ca3af;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 0.75rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: #fff;
+      outline: none;
+      transition: all 0.3s;
+    }
+
+    input:focus, select:focus {
+      border-color: #dc2626;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Buttons */
+    .btn {
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 0.65rem 1.2rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+      transition: all 0.3s;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: #dc2626;
+    }
+
+    .btn-sm {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.85rem;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead td {
+      font-weight: 600;
+      color: #9ca3af;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.2s;
+    }
+
+    tbody tr:hover {
+      background: rgba(220, 38, 38, 0.05);
+    }
+
+    td {
+      padding: 1rem 0.75rem;
+      vertical-align: middle;
+    }
+
+    .thumb {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .no-avatar {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+    }
+
+    .badge {
+      padding: 0.375rem 0.875rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: inline-block;
+    }
+
+    .badge-admin {
+      background: rgba(220, 38, 38, 0.2);
+      color: #dc2626;
+    }
+
+    .badge-coach {
+      background: rgba(255, 255, 255, 0.2);
+      color: #fff;
+    }
+
+    .badge-member {
+      background: rgba(156, 163, 175, 0.2);
+      color: #9ca3af;
+    }
+
+    @media (max-width: 991px) {
+      .sidebar {
+        width: 0;
+        opacity: 0;
+      }
+      .main-content {
+        margin-left: 0;
+      }
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
   </style>
 </head>
 <body>
-<div class="container">
-  <!-- FR: Navigation latérale (libellés traduits) -->
-  <div class="navigation">
-    <ul>
-      <li><a href="index.php"><span class="icon"><ion-icon name="home-outline"></ion-icon></span><span class="title">Dashboard</span></a></li>
-      <li class="active"><a href="users.php"><span class="icon"><ion-icon name="people-outline"></ion-icon></span><span class="title">Users</span></a></li> <!-- traduit -->
-      <li><a href="courses.php"><span class="icon"><ion-icon name="calendar-outline"></ion-icon></span><span class="title">Activities & Classes</span></a></li> <!-- traduit -->
-      <li><a href="subscriptions.php"><span class="icon"><ion-icon name="card-outline"></ion-icon></span><span class="title">Subscriptions & Payments</span></a></li> <!-- traduit -->
-      <li><a href="/MyGym/backend/logout.php"><span class="icon"><ion-icon name="log-out-outline"></ion-icon></span><span class="title">Logout</span></a></li> <!-- traduit -->
-    </ul>
-  </div>
+  <div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <svg width="180" height="50" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(5, 15)">
+            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradient1)"/>
+            <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+          </g>
+          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradient)" letter-spacing="2">MyGym</text>
+          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#9ca3af" letter-spacing="3">PERFORMANCE CLUB</text>
+          <defs>
+            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="100%" stop-color="#991b1b"/>
+            </linearGradient>
+            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="50%" stop-color="#ef4444"/>
+              <stop offset="100%" stop-color="#dc2626"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
 
-  <!-- FR: Contenu principal -->
-  <div class="main">
-    <div class="topbar">
-      <div style="width:60px;text-align:center"><ion-icon name="menu-outline" style="font-size:2rem"></ion-icon></div>
-      <div style="font-weight:700;color:var(--primary)">Users — Administration</div> <!-- traduit -->
-    </div>
+      <nav>
+        <ul class="nav-menu">
+          <li class="nav-item">
+            <a href="index.php" class="nav-link">
+              <ion-icon name="grid"></ion-icon>
+              <span>Dashboard</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="users.php" class="nav-link active">
+              <ion-icon name="people"></ion-icon>
+              <span>Users</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="courses.php" class="nav-link">
+              <ion-icon name="barbell"></ion-icon>
+              <span>Activities & Classes</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="subscriptions.php" class="nav-link">
+              <ion-icon name="card"></ion-icon>
+              <span>Subscriptions</span>
+            </a>
+          </li>
+        </ul>
 
-    <div class="wrap">
-      <!-- FR: Messages globaux (succès/erreur) -->
-      <?php if ($ok): ?><div class="alert ok"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
-      <?php if ($err): ?><div class="alert err"><?= htmlspecialchars($err) ?></div><?php endif; ?>
+        <a href="/MyGym/backend/logout.php" class="logout-btn">
+          <ion-icon name="log-out"></ion-icon>
+          <span>Logout</span>
+        </a>
+      </nav>
+    </aside>
 
-      <!-- KPIs -->
-      <div class="grid4">
-        <div class="card">
-          <div>
-            <div class="numbers"><?= count($users) ?></div>
-            <div class="cardName">Total users</div> <!-- traduit -->
-          </div>
-          <ion-icon class="iconBx" name="people-outline" style="font-size:2rem;color:#999"></ion-icon>
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="header">
+        <h1>User Management</h1>
+        <p style="color: #9ca3af;">Manage system users and permissions.</p>
+      </div>
+
+      <!-- Alerts -->
+      <?php if ($ok): ?>
+        <div class="alert alert-success"><?= htmlspecialchars($ok) ?></div>
+      <?php endif; ?>
+      <?php if ($err): ?>
+        <div class="alert alert-error"><?= htmlspecialchars($err) ?></div>
+      <?php endif; ?>
+
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value"><?= count($users) ?></div>
+          <div class="stat-label">Total Users</div>
         </div>
-        <div class="card">
-          <div>
-            <div class="numbers"><?= $admins ?></div>
-            <div class="cardName">Admins</div>
-          </div>
-          <ion-icon class="iconBx" name="shield-checkmark-outline" style="font-size:2rem;color:#999"></ion-icon>
+        <div class="stat-card">
+          <div class="stat-value"><?= $admins ?></div>
+          <div class="stat-label">Admins</div>
         </div>
-        <div class="card">
-          <div>
-            <div class="numbers"><?= $coachs ?></div>
-            <div class="cardName">Coaches</div> <!-- traduit (pluriel anglais) -->
-          </div>
-          <ion-icon class="iconBx" name="fitness-outline" style="font-size:2rem;color:#999"></ion-icon>
+        <div class="stat-card">
+          <div class="stat-value"><?= $coachs ?></div>
+          <div class="stat-label">Coaches</div>
         </div>
-        <div class="card">
-          <div>
-            <div class="numbers"><?= $members ?></div>
-            <div class="cardName">Members</div> <!-- traduit -->
-          </div>
-          <ion-icon class="iconBx" name="person-outline" style="font-size:2rem;color:#999"></ion-icon>
+        <div class="stat-card">
+          <div class="stat-value"><?= $members ?></div>
+          <div class="stat-label">Members</div>
         </div>
       </div>
 
-      <!-- Formulaire Ajouter / Modifier -->
-      <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <h2 style="color:#e50914"><?= $editUser ? 'Edit user' : 'Add user' ?></h2> <!-- traduit -->
-          <?php if ($editUser): ?><a class="btn btn--ghost" href="users.php">Cancel</a><?php endif; ?> <!-- traduit -->
+      <!-- Form -->
+      <div class="section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+          <h2 class="section-title" style="margin:0"><?= $editUser ? 'Edit User' : 'Add User' ?></h2>
+          <?php if ($editUser): ?>
+            <a class="btn btn-ghost" href="users.php">Cancel</a>
+          <?php endif; ?>
         </div>
-        <br>
+
         <form method="post" class="form-grid">
           <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
           <?php if ($editUser): ?>
@@ -369,71 +692,63 @@ foreach ($users as $u) {
           <?php endif; ?>
 
           <div>
-            <label>Full name <!-- traduit -->
-              <input name="fullname" required value="<?= htmlspecialchars($editUser['fullname'] ?? '') ?>">
-            </label>
+            <label>Full Name</label>
+            <input name="fullname" required value="<?= htmlspecialchars($editUser['fullname'] ?? '') ?>">
           </div>
           <div>
-            <label>Username
-              <input name="username" required value="<?= htmlspecialchars($editUser['username'] ?? '') ?>">
-            </label>
+            <label>Username</label>
+            <input name="username" required value="<?= htmlspecialchars($editUser['username'] ?? '') ?>">
           </div>
           <div>
-            <label>Email
-              <input type="email" name="email" required value="<?= htmlspecialchars($editUser['email'] ?? '') ?>">
-            </label>
+            <label>Email</label>
+            <input type="email" name="email" required value="<?= htmlspecialchars($editUser['email'] ?? '') ?>">
           </div>
           <div>
-            <label>Role <!-- traduit -->
-              <select name="role">
-                <?php
-                  $currentUi = role_for_ui($editUser['role'] ?? 'MEMBER'); // ADMIN/COACH/MEMBER
-                  // FR: Valeurs envoyées = clés (en anglais), libellés affichés = anglais
-                  $options = ['ADMIN'=>'ADMIN','COACH'=>'COACH','MEMBER'=>'MEMBER'];
-                  foreach ($options as $val => $label) {
-                    $sel = ($currentUi === $val) ? 'selected' : '';
-                    echo "<option value=\"$val\" $sel>$label</option>";
-                  }
-                ?>
-              </select>
-            </label>
+            <label>Role</label>
+            <select name="role">
+              <?php
+                $currentUi = role_for_ui($editUser['role'] ?? 'MEMBER');
+                $options = ['ADMIN'=>'ADMIN','COACH'=>'COACH','MEMBER'=>'MEMBER'];
+                foreach ($options as $val => $label) {
+                  $sel = ($currentUi === $val) ? 'selected' : '';
+                  echo "<option value=\"$val\" $sel>$label</option>";
+                }
+              ?>
+            </select>
           </div>
           <div class="full">
-            <label>Password <?= $editUser ? '<small>(leave empty to keep current)</small>' : '' ?> <!-- traduit -->
-              <input type="password" name="password" <?= $editUser ? '' : 'required' ?>>
-            </label>
+            <label>Password <?= $editUser ? '<small style="text-transform:none;font-weight:400">(leave empty to keep current)</small>' : '' ?></label>
+            <input type="password" name="password" <?= $editUser ? '' : 'required' ?>>
           </div>
 
-          <div class="full" style="display:flex;gap:10px">
-            <button class="btn" type="submit"><?= $editUser ? 'Save' : 'Add' ?></button> <!-- traduit -->
+          <div class="full">
+            <button class="btn" type="submit"><?= $editUser ? 'Save Changes' : 'Add User' ?></button>
           </div>
         </form>
       </div>
 
-      <!-- Liste des utilisateurs -->
-      <div class="panel">
-        <h2 style="color:#e50914">Users list</h2> <!-- traduit -->
-        <br>
-        <div class="tablewrap">
-          <table class="table-users">
+      <!-- Users List -->
+      <div class="section">
+        <h2 class="section-title">Users List</h2>
+        <div style="overflow-x:auto">
+          <table>
             <thead>
               <tr>
-                <th class="col-id">ID</th>
-                <th class="col-photo">Photo</th>
-                <th>Name</th>        <!-- traduit -->
-                <th>Username</th>
-                <th>Email</th>
-                <th class="col-role">Role</th> <!-- traduit -->
-                <th class="col-actions">Actions</th>
+                <td style="width:70px">ID</td>
+                <td style="width:70px;text-align:center">Photo</td>
+                <td>Name</td>
+                <td>Username</td>
+                <td>Email</td>
+                <td style="width:120px">Role</td>
+                <td style="width:220px;text-align:right">Actions</td>
               </tr>
             </thead>
             <tbody>
             <?php foreach ($users as $u): ?>
               <?php
-                $ru = role_for_ui((string)$u['role']); // ADMIN/COACH/MEMBER
-                $photo = avatar_url_for_user($u);      // null si ADMIN (place vide)
-                $badgeClass = $ru==='ADMIN' ? 'admin' : ($ru==='COACH' ? 'coach' : 'member');
-                // FR: Libellé de badge en anglais pour l’UI
+                $ru = role_for_ui((string)$u['role']);
+                $photo = avatar_url_for_user($u);
+                $badgeClass = $ru==='ADMIN' ? 'badge-admin' : ($ru==='COACH' ? 'badge-coach' : 'badge-member');
                 $badgeText  = $ru==='ADMIN' ? 'ADMIN' : ($ru==='COACH' ? 'COACH' : 'MEMBER');
               ?>
               <tr>
@@ -442,7 +757,7 @@ foreach ($users as $u) {
                   <?php if ($photo): ?>
                     <img class="thumb" src="<?= htmlspecialchars($photo) ?>" alt="avatar">
                   <?php else: ?>
-                    <span class="no-avatar" title="<?= $ru==='ADMIN' ? 'Admin (photo hidden)' : 'No photo' ?>"></span> <!-- traduit -->
+                    <span class="no-avatar"></span>
                   <?php endif; ?>
                 </td>
                 <td><?= htmlspecialchars($u['fullname']) ?></td>
@@ -453,12 +768,12 @@ foreach ($users as $u) {
                 </td>
                 <td style="text-align:right">
                   <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-                    <a class="btn btn--ghost btn--sm" href="users.php?edit=<?= (int)$u['id'] ?>">Edit</a> <!-- traduit -->
-                    <form method="post" onsubmit="return confirm('Delete this user?');"> <!-- traduit -->
+                    <a class="btn btn-ghost btn-sm" href="users.php?edit=<?= (int)$u['id'] ?>">Edit</a>
+                    <form method="post" style="display:inline" onsubmit="return confirm('Delete this user?');">
                       <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
                       <input type="hidden" name="action" value="delete">
                       <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-                      <button class="btn btn--sm" type="submit" style="background:#333">Delete</button> <!-- traduit -->
+                      <button class="btn btn-sm" type="submit" style="background:#666">Delete</button>
                     </form>
                   </div>
                 </td>
@@ -468,9 +783,7 @@ foreach ($users as $u) {
           </table>
         </div>
       </div>
-
-    </div>
+    </main>
   </div>
-</div>
 </body>
 </html>

@@ -21,15 +21,15 @@ function clean(string $s): string { return trim($s); }
 
 /* -------- Seulement en POST -------- */
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-  header('Location: /MyGym/frontend/login/register.html?error=method'); exit;
+  header('Location: /MyGym/register.php?error=method'); exit;
 }
 
 /* -------- Récupération champs (adapte aux noms de ton formulaire) -------- */
 $fullname = clean($_POST['fullname'] ?? '');
 $username = clean($_POST['username'] ?? '');
 $email    = clean($_POST['email'] ?? '');
-$pass     = (string)($_POST['pass'] ?? '');
-$pass2    = (string)($_POST['pass2'] ?? '');
+$pass     = (string)($_POST['password'] ?? '');
+$pass2    = (string)($_POST['confirm_password'] ?? '');
 
 /* -------- Normalisation minimum si seul "username" est fourni -------- */
 if ($email === '' && str_contains($username, '@')) {
@@ -39,20 +39,23 @@ if ($email === '' && str_contains($username, '@')) {
 
 /* -------- Validations -------- */
 if ($username === '' || $email === '' || $pass === '') {
-  header('Location: /MyGym/frontend/login/register.html?error=empty'); exit;
+  header('Location: /MyGym/register.php?error=All+fields+are+required'); exit;
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-  header('Location: /MyGym/frontend/login/register.html?error=email'); exit;
+  header('Location: /MyGym/register.php?error=Invalid+email+address'); exit;
 }
 if ($pass2 !== '' && $pass !== $pass2) {
-  header('Location: /MyGym/frontend/login/register.html?error=passmatch'); exit;
+  header('Location: /MyGym/register.php?error=Passwords+do+not+match'); exit;
+}
+if (strlen($pass) < 6) {
+  header('Location: /MyGym/register.php?error=Password+must+be+at+least+6+characters'); exit;
 }
 
 /* -------- Unicité -------- */
 $st = $pdo->prepare("SELECT 1 FROM users WHERE username=:u OR email=:e LIMIT 1");
 $st->execute([':u'=>$username, ':e'=>$email]);
 if ($st->fetchColumn()) {
-  header('Location: /MyGym/frontend/login/register.html?error=exists'); exit;
+  header('Location: /MyGym/register.php?error=Username+or+email+already+exists'); exit;
 }
 
 /* -------- Prépare insertion -------- */
@@ -70,22 +73,22 @@ try {
     ':f'  => $fullname,
     ':u'  => $username,
     ':e'  => $email,
-    ':r'  => $roleMember,   // <<< évite l’erreur “Data truncated…”
+    ':r'  => $roleMember,   // <<< évite l'erreur "Data truncated…"
     ':ph' => $hash,
   ]);
 } catch (PDOException $e) {
   // Renvoie proprement une erreur lisible
-  header('Location: /MyGym/frontend/login/register.html?error=sql'); exit;
+  header('Location: /MyGym/register.php?error=Registration+failed.+Please+try+again'); exit;
 }
 
-/* -------- Récupère l’utilisateur et connecte -------- */
+/* -------- Récupère l'utilisateur et connecte -------- */
 $uid = (int)$pdo->lastInsertId();
 $u = $pdo->prepare("SELECT id, fullname, email, username, role, is_active FROM users WHERE id=:id");
 $u->execute([':id'=>$uid]);
 $user = $u->fetch(PDO::FETCH_ASSOC);
 
 if (!$user) {
-  header('Location: /MyGym/frontend/login/login.html?error=created_but_login'); exit;
+  header('Location: /MyGym/login.php?error=notfound'); exit;
 }
 
 /* -------- Stocke en session (format attendu par le site) -------- */

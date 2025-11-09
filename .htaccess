@@ -1,0 +1,26 @@
+# Enable URL rewriting
+RewriteEngine On
+RewriteBase /MyGym/
+
+# Redirect root to React frontend
+RewriteRule ^$ /MyGym/frontend/ [R=301,L]
+
+# Allow backend API access
+RewriteCond %{REQUEST_URI} ^/MyGym/backend/
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Allow admin/coach/member dashboards
+RewriteCond %{REQUEST_URI} ^/MyGym/(admin|coach|member)/
+RewriteRule ^ - [L]
+
+# Allow uploads (avatars, etc.)
+RewriteCond %{REQUEST_URI} ^/MyGym/uploads/
+RewriteRule ^ - [L]
+
+# Allow frontend access
+RewriteCond %{REQUEST_URI} ^/MyGym/frontend/
+RewriteRule ^ - [L]
+
+# Redirect everything else to React frontend
+RewriteRule ^(.*)$ /MyGym/frontend/ [R=301,L]

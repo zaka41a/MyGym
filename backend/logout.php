@@ -3,15 +3,15 @@ declare(strict_types=1);
 ini_set('display_errors','1');
 error_reporting(E_ALL);
 
-// Démarre la session si pas déjà active
+// Start session if not already active
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
 
-// Vider toutes les variables de session
+// Clear all session variables
 $_SESSION = [];
 
-// Supprimer le cookie de session
+// Delete session cookie
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
     setcookie(
@@ -25,9 +25,9 @@ if (ini_get("session.use_cookies")) {
     );
 }
 
-// Détruire la session
+// Destroy session
 session_destroy();
 
-// Redirection vers la page de login
-header("Location: /MyGym/frontend/login/login.html?logout=success");
+// Redirect to React login page
+header("Location: http://localhost:5173/login?logout=success");
 exit;

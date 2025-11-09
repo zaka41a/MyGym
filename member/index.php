@@ -1,24 +1,25 @@
 <?php
 declare(strict_types=1);
-session_start();
 ini_set('display_errors','1');
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/../backend/auth.php';
-requireRole('MEMBER','MEMBRE','ADMIN'); // FR: Accès réservé aux membres (accepte 'MEMBER' et 'MEMBRE') et admins
+requireRole('MEMBER','ADMIN');
 require_once __DIR__ . '/../backend/db.php';
 require_once __DIR__ . '/../backend/subscriptions.php';
 
-// FR: Identité basique de l'utilisateur connecté (utile pour l'affichage)
+// Marquer automatiquement les abonnements expirés
+try { expire_old_subscriptions($pdo); } catch (Throwable $e) {}
+
+// User info
 $userId   = (int)($_SESSION['user']['id'] ?? 0);
 $userName = $_SESSION['user']['fullname'] ?? 'Member';
 
-// FR: Jeton CSRF pour sécuriser les formulaires POST
+// CSRF token
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32));
 $CSRF = $_SESSION['csrf'];
 
-/* ===== Avatar URL =====
-   FR: Détermine l'URL publique de l'avatar (BDD > fichiers locaux > placeholder) */
+// Avatar
 $rootDir      = dirname(__DIR__);
 $uploadDirFS  = $rootDir . '/uploads/avatars';
 $uploadDirWeb = '/MyGym/uploads/avatars';
@@ -29,7 +30,7 @@ try {
   $stmt->execute([':id'=>$userId]);
   $avatarDb = (string)($stmt->fetchColumn() ?? '');
   if ($avatarDb !== '') $avatarUrl = $uploadDirWeb . '/' . basename($avatarDb) . '?t=' . time();
-} catch (Throwable $e) { /* FR: On ignore, fallback fichiers */ }
+} catch (Throwable $e) { }
 
 if (!$avatarUrl) {
   foreach (['jpg','png','webp'] as $ext) {
@@ -39,8 +40,7 @@ if (!$avatarUrl) {
 }
 if (!$avatarUrl) $avatarUrl = 'https://via.placeholder.com/36x36?text=%20';
 
-/* ===== Abonnements / Accès =====
-   FR: Récupère l'abonnement actif, une éventuelle demande en attente et les droits de réservation */
+// Subscription info
 $active = $pending = null;
 $canBook = false;
 try {
@@ -52,8 +52,7 @@ try {
   $canBook = false;
 }
 
-/* ===== Jours restants + % progression =====
-   FR: Calcule les jours restants et la progression temporelle de l'abonnement actif */
+// Days left & progress
 $daysLeft = null; $pctLeft = null;
 if ($active && !empty($active['end_date'])) {
   try {
@@ -68,8 +67,7 @@ if ($active && !empty($active['end_date'])) {
   } catch (Throwable $e) { $daysLeft = $pctLeft = null; }
 }
 
-/* ===== Mes prochaines réservations (réelles) =====
-   FR: Liste des prochaines sessions réservées par l'utilisateur */
+// My next reservations
 $myNext = [];
 try {
   $sql = "
@@ -92,8 +90,7 @@ try {
   $myNext = [];
 }
 
-/* ===== Nombre réel de cours réservés (BOOKED) =====
-   FR: KPI simple pour l'encart carte en haut */
+// Booked count
 $bookedCount = 0;
 try {
   $st = $pdo->prepare("SELECT COUNT(*) FROM reservations WHERE user_id=:u AND status='BOOKED'");
@@ -106,211 +103,545 @@ try {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MyGym — Member Area</title> <!-- FR: Titre de la page (onglet) -->
-  <!-- FR: Librairie d'icônes -->
-  <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
-  <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
-  <!-- FR: Styles intégrés pour le tableau de bord -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyGym — Member Dashboard</title>
+  <?php include __DIR__ . '/../shared/head-meta.php'; ?>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
   <style>
-    @import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap");
-    :root{--primary:#e50914;--primary-600:#cc0812;--white:#fff;--gray:#f5f5f5;--border:#e9e9e9;--black1:#222;--black2:#999;--shadow:0 7px 25px rgba(0,0,0,.08);--green:#28a745;--red:#dc3545}
-    *{box-sizing:border-box;margin:0;padding:0;font-family:"Ubuntu",system-ui,Segoe UI,Roboto,sans-serif}
-    body{background:var(--gray);color:var(--black1);min-height:100vh;overflow-x:hidden}
-    .container{position:relative;width:100%}
-    .navigation{position:fixed;width:300px;height:100%;background:var(--primary);overflow:hidden;box-shadow:var(--shadow)}
-    .navigation ul{position:absolute;inset:0}
-    .navigation li{list-style:none}
-    .navigation a{display:flex;height:60px;align-items:center;color:#fff;text-decoration:none;padding-left:10px}
-    .navigation .icon{min-width:50px;text-align:center}
-    .navigation li:hover,.navigation li.active{background:var(--primary-600)}
-    .main{position:absolute;left:300px;width:calc(100% - 300px);min-height:100vh;background:var(--white)}
-    .topbar{height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border)}
-    .title-top{color:var(--primary);font-weight:700}
-    .topbar-right{display:flex;align-items:center;gap:10px}
-    .avatarTop{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #eee}
-    .wrap{max-width:1200px;margin:0 auto;padding:20px}
-    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-    .card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center}
-    .numbers{font-weight:700;font-size:2rem;color:var(--primary)}
-    .cardName{color:var(--black2)} .iconBx{font-size:2.2rem;color:var(--black2)}
-    .cols{display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-top:20px}
-    .panel{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:var(--shadow)}
-    .cardHeader{display:flex;justify-content:space-between;align-items:center}
-    .btn{background:var(--primary);color:#fff;border:0;border-radius:8px;padding:.45rem .9rem;font-weight:600;cursor:pointer;text-decoration:none}
-    table{width:100%;border-collapse:collapse;margin-top:10px} thead td{font-weight:700}
-    tr{border-bottom:1px solid #eee} td{padding:10px;vertical-align:middle}
-    .status{padding:2px 8px;border-radius:999px;font-weight:600;font-size:.85rem;color:#fff;display:inline-block}
-    .status.delivered{background:var(--green)} .status.pending{background:var(--red)}
-    .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:700;font-size:.85rem;color:#fff;background:var(--green)}
-    .progress{height:6px;border-radius:999px;background:#f0f0f0;overflow:hidden}
-    .progress>span{display:block;height:100%;background:var(--green)}
-    @media (max-width:991px){.main{left:0;width:100%}.grid3{grid-template-columns:1fr}.cols{grid-template-columns:1fr}}
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0a;
+      color: #f5f7fb;
+      min-height: 100vh;
+      background: radial-gradient(55% 80% at 50% 0%, rgba(220, 38, 38, 0.22), transparent 65%),
+                  radial-gradient(60% 90% at 75% 15%, rgba(127, 29, 29, 0.18), transparent 70%),
+                  linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 1) 100%);
+    }
+
+    .container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: rgba(17, 17, 17, 0.95);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2rem 1.5rem;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      box-shadow: 0 10px 30px rgba(220,38,38,0.4);
+    }
+
+    .logo-text h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-text p {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .nav-menu {
+      list-style: none;
+      margin: 2rem 0;
+    }
+
+    .nav-item {
+      margin-bottom: 0.5rem;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      color: #9ca3af;
+      text-decoration: none;
+      border-radius: 12px;
+      transition: all 0.3s;
+      font-weight: 500;
+    }
+
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+
+    .nav-link.active {
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(220,38,38,0.3);
+    }
+
+    .nav-link ion-icon {
+      font-size: 1.25rem;
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      color: #9ca3af;
+      text-decoration: none;
+      transition: all 0.3s;
+      font-weight: 500;
+      margin-top: 2rem;
+    }
+
+    .logout-btn:hover {
+      background: rgba(220, 38, 38, 0.2);
+      color: #fff;
+      border-color: #dc2626;
+    }
+
+    /* Main Content */
+    .main-content {
+      margin-left: 280px;
+      flex: 1;
+      padding: 2rem;
+    }
+
+    .header {
+      margin-bottom: 3rem;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .header p {
+      color: #9ca3af;
+      font-size: 1rem;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 1.5rem;
+      transition: all 0.3s;
+    }
+
+    .stat-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(220, 38, 38, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .stat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+    }
+
+    .stat-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #dc2626;
+      font-size: 1.5rem;
+    }
+
+    .stat-value {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      color: #9ca3af;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* Sections */
+    .section {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      color: #fff;
+      border: 0;
+      border-radius: 12px;
+      padding: 0.5rem 1.2rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+      display: inline-block;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(220, 38, 38, 0.4);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead td {
+      font-weight: 600;
+      color: #9ca3af;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      transition: all 0.2s;
+    }
+
+    tbody tr:hover {
+      background: rgba(220, 38, 38, 0.05);
+    }
+
+    td {
+      padding: 1rem 0.75rem;
+      vertical-align: middle;
+    }
+
+    .badge {
+      padding: 0.375rem 0.875rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: inline-block;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+
+    .progress {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .progress>span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+
+    .cols {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 991px) {
+      .sidebar {
+        width: 0;
+        opacity: 0;
+      }
+      .main-content {
+        margin-left: 0;
+      }
+      .cols {
+        grid-template-columns: 1fr;
+      }
+    }
   </style>
 </head>
 <body>
-<div class="container">
-  <!-- FR: Navigation latérale (branding + liens) -->
-  <div class="navigation">
-    <ul>
-      <li style="background:transparent">
-        <a href="index.php">
-          <span class="icon"><ion-icon name="barbell-outline"></ion-icon></span>
-          <span class="title">MyGym — Member</span> <!-- traduit -->
-        </a>
-      </li>
-      <li class="active"><a href="index.php"><span class="icon"><ion-icon name="home-outline"></ion-icon></span><span class="title">Dashboard</span></a></li>
-
-      <li>
-        <?php if ($canBook): ?>
-          <a href="courses.php"><span class="icon"><ion-icon name="calendar-outline"></ion-icon></span><span class="title">My Classes</span></a> <!-- traduit -->
-        <?php else: ?>
-          <a href="subscribe.php" title="Reservations available with Plus/Pro" style="opacity:.75"> <!-- title traduit -->
-            <span class="icon"><ion-icon name="lock-closed-outline"></ion-icon></span>
-            <span class="title">My Classes (locked)</span> <!-- traduit -->
-          </a>
-        <?php endif; ?>
-      </li>
-
-      <li><a href="subscribe.php"><span class="icon"><ion-icon name="card-outline"></ion-icon></span><span class="title">My Subscription</span></a></li> <!-- traduit -->
-      <li><a href="profile.php"><span class="icon"><ion-icon name="person-circle-outline"></ion-icon></span><span class="title">Profile</span></a></li> <!-- traduit -->
-      <li><a href="/MyGym/backend/logout.php"><span class="icon"><ion-icon name="log-out-outline"></ion-icon></span><span class="title">Logout</span></a></li> <!-- traduit -->
-    </ul>
-  </div>
-
-  <!-- FR: Zone principale (topbar + contenu) -->
-  <div class="main">
-    <div class="topbar">
-      <div style="width:60px;text-align:center"><ion-icon name="menu-outline" style="font-size:2rem"></ion-icon></div>
-      <div class="topbar-right">
-        <div class="title-top">Hello, <?= htmlspecialchars($userName) ?></div> <!-- traduit -->
-        <a href="profile.php" title="View my profile"> <!-- title traduit -->
-          <img class="avatarTop" src="<?= htmlspecialchars($avatarUrl) ?>" alt="Avatar">
-        </a>
-      </div>
-    </div>
-
-    <div class="wrap">
-      <!-- FR: Cartes KPI (réservations, abonnement, statut) -->
-      <div class="grid3">
-        <div class="card">
-          <div>
-            <div class="numbers"><?= (int)$bookedCount ?></div>
-            <div class="cardName">Booked classes</div> <!-- traduit -->
-          </div>
-          <div class="iconBx"><ion-icon name="calendar-outline"></ion-icon></div>
-        </div>
-        <div class="card">
-          <div>
-            <?php if ($active && $daysLeft !== null): ?>
-              <div class="numbers">D-<?= (int)$daysLeft ?></div> <!-- FR: Conserve le format D-XX (jour restant) -->
-              <div class="cardName">Active subscription — <?= htmlspecialchars($active['plan_name']) ?></div> <!-- traduit -->
-            <?php elseif ($pending): ?>
-              <div class="numbers">—</div>
-              <div class="cardName">Pending request — <?= htmlspecialchars($pending['plan_name']) ?></div> <!-- traduit -->
-            <?php else: ?>
-              <div class="numbers">—</div>
-              <div class="cardName">No subscription</div> <!-- traduit -->
-            <?php endif; ?>
-          </div>
-          <div class="iconBx"><ion-icon name="time-outline"></ion-icon></div>
-        </div>
-        <div class="card">
-          <div>
-            <div class="numbers"><?= $active ? 'Active' : ($pending ? 'Pending' : 'None') ?></div> <!-- traduit -->
-            <div class="cardName">Status</div> <!-- traduit -->
-          </div>
-          <div class="iconBx">
-            <ion-icon name="<?= $active ? 'checkmark-circle-outline' : ($pending ? 'hourglass-outline' : 'alert-circle-outline') ?>"></ion-icon>
-          </div>
-        </div>
+  <div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <svg width="180" height="50" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(5, 15)">
+            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradient1)"/>
+            <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+          </g>
+          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradient)" letter-spacing="2">MyGym</text>
+          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#9ca3af" letter-spacing="3">PERFORMANCE CLUB</text>
+          <defs>
+            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="100%" stop-color="#991b1b"/>
+            </linearGradient>
+            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="50%" stop-color="#ef4444"/>
+              <stop offset="100%" stop-color="#dc2626"/>
+            </linearGradient>
+          </defs>
+        </svg>
       </div>
 
-      <!-- FR: Deux colonnes - à gauche: prochaines réservations ; à droite: abonnement -->
-      <div class="cols">
-        <!-- FR: Mes prochaines réservations (table) -->
-        <div class="panel">
-          <div class="cardHeader">
-            <h2>My upcoming classes</h2> <!-- traduit -->
+      <nav>
+        <ul class="nav-menu">
+          <li class="nav-item">
+            <a href="index.php" class="nav-link active">
+              <ion-icon name="grid"></ion-icon>
+              <span>Dashboard</span>
+            </a>
+          </li>
+          <li class="nav-item">
             <?php if ($canBook): ?>
-              <a href="courses.php" class="btn">Catalog</a> <!-- traduit -->
+              <a href="courses.php" class="nav-link">
+                <ion-icon name="calendar"></ion-icon>
+                <span>My Classes</span>
+              </a>
             <?php else: ?>
-              <a href="subscribe.php" class="btn" title="Reservations available with Plus/Pro">Upgrade to Plus/Pro</a> <!-- traduit -->
+              <a href="subscribe.php" class="nav-link" style="opacity:0.6">
+                <ion-icon name="lock-closed"></ion-icon>
+                <span>My Classes (Locked)</span>
+              </a>
+            <?php endif; ?>
+          </li>
+          <li class="nav-item">
+            <a href="subscribe.php" class="nav-link">
+              <ion-icon name="card"></ion-icon>
+              <span>Subscription</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="profile.php" class="nav-link">
+              <ion-icon name="person-circle"></ion-icon>
+              <span>Profile</span>
+            </a>
+          </li>
+        </ul>
+
+        <a href="/MyGym/backend/logout.php" class="logout-btn">
+          <ion-icon name="log-out"></ion-icon>
+          <span>Logout</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="header">
+        <h1>Welcome back, <?= htmlspecialchars($userName) ?>!</h1>
+        <p>Track your fitness journey and upcoming classes.</p>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-header">
+            <div class="stat-icon">
+              <ion-icon name="calendar"></ion-icon>
+            </div>
+          </div>
+          <div class="stat-value"><?= (int)$bookedCount ?></div>
+          <div class="stat-label">Booked Classes</div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-header">
+            <div class="stat-icon">
+              <ion-icon name="time"></ion-icon>
+            </div>
+          </div>
+          <?php if ($active && $daysLeft !== null): ?>
+            <div class="stat-value">D-<?= (int)$daysLeft ?></div>
+            <div class="stat-label"><?= htmlspecialchars($active['plan_name']) ?></div>
+          <?php elseif ($pending): ?>
+            <div class="stat-value">—</div>
+            <div class="stat-label">Pending Request</div>
+          <?php else: ?>
+            <div class="stat-value">—</div>
+            <div class="stat-label">No Subscription</div>
+          <?php endif; ?>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-header">
+            <div class="stat-icon">
+              <ion-icon name="<?= $active ? 'checkmark-circle' : ($pending ? 'hourglass' : 'alert-circle') ?>"></ion-icon>
+            </div>
+          </div>
+          <div class="stat-value"><?= $active ? 'Active' : ($pending ? 'Pending' : 'None') ?></div>
+          <div class="stat-label">Status</div>
+        </div>
+      </div>
+
+      <!-- Two columns -->
+      <div class="cols">
+        <!-- My upcoming classes -->
+        <div class="section">
+          <div class="section-header">
+            <h2 class="section-title">My Upcoming Classes</h2>
+            <?php if ($canBook): ?>
+              <a href="courses.php" class="btn">View Catalog</a>
+            <?php else: ?>
+              <a href="subscribe.php" class="btn">Upgrade Plan</a>
             <?php endif; ?>
           </div>
           <table>
-            <thead><tr><td>Date</td><td>Activity</td><td>Coach</td><td>Action</td></tr></thead> <!-- traduit -->
+            <thead>
+              <tr>
+                <td>Date</td>
+                <td>Activity</td>
+                <td>Coach</td>
+                <td>Action</td>
+              </tr>
+            </thead>
             <tbody>
-              <?php if ($myNext): ?>
-                <?php foreach ($myNext as $row): ?>
-                  <tr>
-                    <td><?= date('d/m H:i', strtotime((string)$row['start_at'])) ?></td>
-                    <td><?= htmlspecialchars($row['activity']) ?></td>
-                    <td><?= htmlspecialchars($row['coach']) ?></td>
-                    <td>
-                      <form method="post" action="courses.php" style="display:inline">
-                        <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
-                        <input type="hidden" name="action" value="cancel">
-                        <input type="hidden" name="session_id" value="<?= (int)$row['id'] ?>">
-                        <button class="btn" type="submit" style="background:#333" onclick="return confirm('Cancel this booking?');">Cancel</button> <!-- traduit + confirm -->
-                      </form>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              <?php else: ?>
-                <tr><td colspan="4" style="color:#777;text-align:center">No upcoming bookings.</td></tr> <!-- traduit -->
-              <?php endif; ?>
+              <?php if (empty($myNext)): ?>
+                <tr><td colspan="4" style="text-align:center;color:#9ca3af">No upcoming bookings.</td></tr>
+              <?php else: foreach ($myNext as $row): ?>
+                <tr>
+                  <td><?= date('M d, H:i', strtotime((string)$row['start_at'])) ?></td>
+                  <td><?= htmlspecialchars($row['activity']) ?></td>
+                  <td><?= htmlspecialchars($row['coach']) ?></td>
+                  <td>
+                    <form method="post" action="courses.php" style="display:inline">
+                      <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
+                      <input type="hidden" name="action" value="cancel">
+                      <input type="hidden" name="session_id" value="<?= (int)$row['id'] ?>">
+                      <button class="btn" type="submit" style="background:#666;font-size:0.75rem" onclick="return confirm('Cancel this booking?');">Cancel</button>
+                    </form>
+                  </td>
+                </tr>
+              <?php endforeach; endif; ?>
             </tbody>
           </table>
         </div>
 
-        <!-- FR: Encadré 'Mon abonnement' -->
-        <div class="panel">
-          <div class="cardHeader"><h2>My subscription</h2></div> <!-- traduit -->
+        <!-- My subscription -->
+        <div class="section">
+          <div class="section-header">
+            <h2 class="section-title">My Subscription</h2>
+          </div>
 
           <?php if ($active): ?>
-            <p style="margin:6px 0">
-              Plan: <strong><?= htmlspecialchars($active['plan_name']) ?></strong><br>
-              Start: <?= htmlspecialchars($active['start_date'] ?: '—') ?> |
+            <p style="margin:6px 0;color:#9ca3af">
+              <strong style="color:#fff"><?= htmlspecialchars($active['plan_name']) ?></strong><br>
+              Start: <?= htmlspecialchars($active['start_date'] ?: '—') ?><br>
               End: <?= htmlspecialchars($active['end_date'] ?: '—') ?>
             </p>
-            <div style="display:flex;align-items:center;gap:10px;margin:8px 0">
+            <div style="display:flex;align-items:center;gap:10px;margin:16px 0">
               <?php if ($pctLeft !== null): ?>
                 <div class="progress" style="flex:1 1 200px"><span style="width: <?= (int)$pctLeft ?>%"></span></div>
               <?php endif; ?>
-              <span class="pill"><?= (int)$daysLeft ?> day(s)</span> <!-- traduit -->
+              <span class="badge badge-success"><?= (int)$daysLeft ?> day(s)</span>
             </div>
-            <div style="display:flex;gap:10px;margin-top:8px">
-              <a class="btn" href="subscribe.php">Manage</a> <!-- traduit -->
-              <form method="post" action="subscribe.php" onsubmit="return confirm('Cancel the active subscription?');"> <!-- confirm traduit -->
+            <div style="display:flex;gap:10px;margin-top:16px">
+              <a class="btn" href="subscribe.php">Manage</a>
+              <form method="post" action="subscribe.php" onsubmit="return confirm('Cancel the active subscription?');">
                 <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
                 <input type="hidden" name="action" value="cancel_active">
                 <input type="hidden" name="id" value="<?= (int)($active['id'] ?? 0) ?>">
-                <button class="btn" type="submit" style="background:#333">Cancel subscription</button> <!-- traduit -->
+                <button class="btn" type="submit" style="background:#666">Cancel</button>
               </form>
             </div>
 
           <?php elseif ($pending): ?>
-            <p style="margin:6px 0"><strong>Pending request</strong> — <?= htmlspecialchars($pending['plan_name']) ?></p> <!-- traduit -->
-            <div style="display:flex;gap:10px;margin-top:8px">
-              <a class="btn" href="subscribe.php">View</a> <!-- traduit -->
-              <form method="post" action="subscribe.php" onsubmit="return confirm('Cancel this request?');"> <!-- confirm traduit -->
+            <p style="margin:6px 0;color:#9ca3af">
+              <strong style="color:#fff">Pending Request</strong><br>
+              Plan: <?= htmlspecialchars($pending['plan_name']) ?>
+            </p>
+            <div style="display:flex;gap:10px;margin-top:16px">
+              <a class="btn" href="subscribe.php">View</a>
+              <form method="post" action="subscribe.php" onsubmit="return confirm('Cancel this request?');">
                 <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
                 <input type="hidden" name="action" value="cancel_request">
                 <input type="hidden" name="id" value="<?= (int)($pending['id'] ?? 0) ?>">
-                <button class="btn" type="submit" style="background:#333">Cancel request</button> <!-- traduit -->
+                <button class="btn" type="submit" style="background:#666">Cancel</button>
               </form>
             </div>
 
           <?php else: ?>
-            <p style="margin:6px 0">You don’t have an active subscription.</p><br> <!-- traduit -->
-            <a class="btn" href="subscribe.php">Choose a plan</a> <!-- traduit -->
+            <p style="margin:6px 0;color:#9ca3af">You don't have an active subscription.</p>
+            <a class="btn" href="subscribe.php" style="margin-top:16px">Choose a Plan</a>
           <?php endif; ?>
         </div>
       </div>
-    </div>
+    </main>
   </div>
-</div>
 </body>
 </html>

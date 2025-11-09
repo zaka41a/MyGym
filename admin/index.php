@@ -2,302 +2,580 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../backend/auth.php';
-requireRole('ADMIN'); // FR: accès réservé à l'ADMIN
+requireRole('ADMIN');
 require_once __DIR__ . '/../backend/db.php';
 
-session_start();
+// Get user info
+$user = $_SESSION['user'] ?? [];
+$userName = $user['fullname'] ?? 'Administrator';
 
-/* ---------- Utils ----------
-   FR: Petites helpers d'affichage (normalisation rôle, format €) */
-function role_to_ui(string $r): string {
-  $r = strtoupper(trim($r));
-  return $r === 'MEMBRE' ? 'MEMBER' : (in_array($r, ['ADMIN','COACH','MEMBER'], true) ? $r : 'MEMBER');
-}
-function euro_from_cents(int $c): string {
-  return '€ '.number_format($c / 100, 0, ',', ' ');
-}
+// Stats
+$stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role IN ('MEMBER','MEMBRE')");
+$totalMembers = $stmt->fetchColumn();
 
-/* ---------- Contexte utilisateur + avatar ----------
-   FR: Si ADMIN, on affiche un en-tête générique (logo admin) */
-$user      = $_SESSION['user'] ?? [];
-$userRole  = strtoupper($user['role'] ?? '');
+$stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'COACH'");
+$totalCoaches = $stmt->fetchColumn();
 
-$rootDir      = dirname(__DIR__);
-$uploadDirFS  = $rootDir . '/uploads/avatars';
-$uploadDirWeb = '/MyGym/uploads/avatars';
+$stmt = $pdo->query("SELECT COUNT(*) FROM subscriptions WHERE status = 'ACTIVE'");
+$activeSubscriptions = $stmt->fetchColumn();
 
-if ($userRole === 'ADMIN') {
-  // FR: En espace admin : on n'affiche PAS le profil perso, mais un header générique
-  $userId   = (int)($user['id'] ?? 0);
-  $userName = 'Administrator'; // (EN) était "Administrateur"
-  // FR: Image générique admin (place ton fichier à /MyGym/assets/admin.png)
-  $adminLogoFS  = $rootDir . '/assets/admin.png';
-  $adminLogoWeb = '/MyGym/assets/admin.png';
-  if (is_file($adminLogoFS)) {
-    $avatarUrl = $adminLogoWeb . '?t=' . time();
-  } else {
-    // FR: fallback
-    $avatarUrl = 'https://via.placeholder.com/36x36?text=%20';
-  }
-} else {
-  // FR: Comportement normal pour non-admins
-  $userId   = (int)($user['id'] ?? 0);
-  $userName = $user['fullname'] ?? 'User'; // (EN) était "Utilisateur"
-  $avatarUrl = null;
-
-  try {
-    $stmt = $pdo->prepare("SELECT avatar FROM users WHERE id=:id");
-    $stmt->execute([':id'=>$userId]);
-    $avatarDb = (string)($stmt->fetchColumn() ?? '');
-    if ($avatarDb !== '') $avatarUrl = $uploadDirWeb . '/' . basename($avatarDb) . '?t=' . time();
-  } catch (Throwable $e) { /* FR: ignorer si pas de colonne avatar */ }
-
-  if (!$avatarUrl) {
-    foreach (['jpg','png','webp'] as $ext) {
-      $p = $uploadDirFS . "/user_{$userId}.{$ext}";
-      if (is_file($p)) { $avatarUrl = $uploadDirWeb . "/user_{$userId}.{$ext}?t=" . time(); break; }
-    }
-  }
-  if (!$avatarUrl) $avatarUrl = 'https://via.placeholder.com/36x36?text=%20';
-}
-
-/* ---------- Statistiques utilisateurs ----------
-   FR: Compte ADMIN/COACH/MEMBER et membres actifs */
-$stmt = $pdo->query("SELECT id, role, is_active FROM users");
-$users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-$stats = ['ADMIN'=>0, 'COACH'=>0, 'MEMBER'=>0, 'MEMBER_ACTIVE'=>0];
-foreach ($users as $u) {
-  $r = role_to_ui((string)($u['role'] ?? ''));
-  if (isset($stats[$r])) $stats[$r]++;
-  if ($r === 'MEMBER' && (int)($u['is_active'] ?? 0) === 1) $stats['MEMBER_ACTIVE']++;
-}
-
-/* ---------- Abonnements récents ----------
-   FR: 3 derniers abonnements non PENDING */
+// Recent subscriptions
 $recentSubs = $pdo->query("
-  SELECT s.id, s.status, s.start_date, s.created_at,
+  SELECT s.id, s.status, s.created_at,
          u.fullname,
          p.name AS plan_name
   FROM subscriptions s
   JOIN users u ON u.id = s.user_id
   JOIN plans p ON p.id = s.plan_id
-  WHERE s.status <> 'PENDING'
   ORDER BY s.id DESC
-  LIMIT 3
+  LIMIT 5
 ")->fetchAll(PDO::FETCH_ASSOC);
-
-/* ---------- Revenus (mois courant) ----------
-   FR: Somme des prix plan approuvés sur la période du mois */
-$firstDay = (new DateTime('first day of this month'))->format('Y-m-d');
-$lastDay  = (new DateTime('last day of this month'))->format('Y-m-d');
-
-$stmRev = $pdo->prepare("
-  SELECT COALESCE(SUM(p.price_cents),0) AS cents
-  FROM subscriptions s
-  JOIN plans p ON p.id = s.plan_id
-  WHERE s.approved_by IS NOT NULL
-    AND s.status IN ('ACTIVE','CANCELLED','EXPIRED')
-    AND DATE(COALESCE(s.start_date, s.created_at)) BETWEEN :d1 AND :d2
-");
-$stmRev->execute([':d1'=>$firstDay, ':d2'=>$lastDay]);
-$monthRevenueCents = (int)$stmRev->fetchColumn();
-
-/* ---------- Historique revenus (12 derniers mois) ----------
-   FR: Total par mois, libellés utilisés dans la liste de droite */
-$hist = $pdo->query("
-  SELECT DATE_FORMAT(DATE(COALESCE(s.start_date, s.created_at)),'%Y-%m') AS ym,
-         COALESCE(SUM(p.price_cents),0) AS cents
-  FROM subscriptions s
-  JOIN plans p ON p.id = s.plan_id
-  WHERE s.approved_by IS NOT NULL
-    AND s.status IN ('ACTIVE','CANCELLED','EXPIRED')
-  GROUP BY ym
-  ORDER BY ym DESC
-  LIMIT 12
-")->fetchAll(PDO::FETCH_ASSOC);
-
-$notes = [];
-foreach ($hist as $row) {
-  [$y, $m] = explode('-', $row['ym']);
-  // (EN) était "— total revenu"
-  $notes[] = sprintf('%s/%s — total revenue %s', (int)$m, (int)$y, euro_from_cents((int)$row['cents']));
-}
-
-/* ---------- (Optionnel) Cours semaine courante ----------
-   FR: Nombre de sessions créées sur la semaine en cours */
-$weeklyCourses = 0;
-try {
-  $weekStart = new DateTime('monday this week 00:00:00');
-  $weekEnd   = new DateTime('sunday this week 23:59:59');
-  $stmWeek = $pdo->prepare("SELECT COUNT(*) FROM sessions WHERE start_at BETWEEN :d1 AND :d2");
-  $stmWeek->execute([':d1'=>$weekStart->format('Y-m-d H:i:s'), ':d2'=>$weekEnd->format('Y-m-d H:i:s')]);
-  $weeklyCourses = (int)$stmWeek->fetchColumn();
-} catch (Throwable $e) {
-  $weeklyCourses = 0;
-}
 ?>
 <!DOCTYPE html>
-<html lang="fr"><!-- FR: attribut non visible conservé -->
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MyGym — Admin</title>
-  <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
-  <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyGym — Admin Dashboard</title>
+  <?php include __DIR__ . '/../shared/head-meta.php'; ?>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
   <style>
-    @import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap");
-    :root{
-      --primary:#e50914;--primary-600:#cc0812;--white:#fff;--gray:#f5f5f5;--border:#e9e9e9;
-      --black1:#222;--black2:#999;--shadow:0 7px 25px rgba(0,0,0,.08);
-      --green:#28a745;--amber:#ffb703;--red:#dc3545
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
-    *{box-sizing:border-box;margin:0;padding:0;font-family:"Ubuntu",system-ui,Segoe UI,Roboto,sans-serif}
-    body{background:var(--gray);color:var(--black1);min-height:100vh;overflow-x:hidden}
-    .container{position:relative;width:100%}
-    .navigation{position:fixed;width:300px;height:100%;background:var(--primary);overflow:hidden;box-shadow:var(--shadow)}
-    .navigation ul{position:absolute;inset:0}
-    .navigation ul li{list-style:none}
-    .navigation ul li a{display:flex;width:100%;text-decoration:none;color:#fff;align-items:center;padding-left:10px;height:60px}
-    .navigation ul li a .icon{min-width:50px;text-align:center}
-    .navigation ul li a .icon ion-icon{font-size:1.5rem;color:#fff}
-    .navigation ul li a .title{white-space:nowrap}
-    .navigation ul li:hover,.navigation ul li.active{background:var(--primary-600)}
-    .main{position:absolute;left:300px;width:calc(100% - 300px);min-height:100vh;background:var(--white)}
-    .topbar{height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border)}
-    .title-top{color:var(--primary);font-weight:700}
-    .topbar-right{display:flex;align-items:center;gap:10px}
-    .avatarTop{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #eee}
-    .wrap{max-width:1200px;margin:0 auto;padding:20px}
-    .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:20px}
-    .card{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:var(--shadow);display:flex;justify-content:space-between;align-items:center;transition:.15s}
-    .card:hover{background:var(--primary);color:#fff;transform:translateY(-2px)}
-    .numbers{font-weight:700;font-size:2rem;color:var(--primary)}
-    .card:hover .numbers{color:#fff}
-    .cardName{color:var(--black2)}
-    .iconBx{font-size:2.6rem;color:var(--black2)}
-    .card:hover .iconBx{color:#fff}
-    .cols{display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-top:20px}
-    .panel{background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:var(--shadow)}
-    table{width:100%;border-collapse:collapse;margin-top:10px}
-    thead td{font-weight:700}
-    tr{border-bottom:1px solid #eee}
-    td{padding:10px}
-    .status{padding:2px 8px;border-radius:999px;font-weight:600;font-size:.85rem;color:#fff;display:inline-block}
-    .status.ACTIVE{background:var(--green)}
-    .status.REJECTED{background:#666}
-    .status.CANCELLED{background:#333}
-    .status.EXPIRED{background:var(--red)}
-    .status.PENDING{background:var(--amber);color:#222}
-    @media (max-width:991px){.main{left:0;width:100%}.grid4{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
+
+    body {
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0a;
+      color: #f5f7fb;
+      min-height: 100vh;
+      background: radial-gradient(55% 80% at 50% 0%, rgba(220, 38, 38, 0.22), transparent 65%),
+                  radial-gradient(60% 90% at 75% 15%, rgba(127, 29, 29, 0.18), transparent 70%),
+                  linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 1) 100%);
+    }
+
+    .container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: rgba(17, 17, 17, 0.95);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2rem 1.5rem;
+      position: fixed;
+      height: 100vh;
+      overflow-y: auto;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .logo-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      box-shadow: 0 10px 30px rgba(220,38,38,0.4);
+    }
+
+    .logo-text h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .logo-text p {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .nav-menu {
+      list-style: none;
+      margin: 2rem 0;
+    }
+
+    .nav-item {
+      margin-bottom: 0.5rem;
+    }
+
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      color: #9ca3af;
+      text-decoration: none;
+      border-radius: 12px;
+      transition: all 0.3s;
+      font-weight: 500;
+    }
+
+    .nav-link:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+
+    .nav-link.active {
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(220,38,38,0.3);
+    }
+
+    .nav-link ion-icon {
+      font-size: 1.25rem;
+    }
+
+    .logout-btn {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      color: #9ca3af;
+      text-decoration: none;
+      transition: all 0.3s;
+      font-weight: 500;
+      margin-top: 2rem;
+    }
+
+    .logout-btn:hover {
+      background: rgba(220, 38, 38, 0.2);
+      color: #fff;
+      border-color: #dc2626;
+    }
+
+    /* Main Content */
+    .main-content {
+      margin-left: 280px;
+      flex: 1;
+      padding: 2rem;
+    }
+
+    .header {
+      margin-bottom: 3rem;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .header p {
+      color: #9ca3af;
+      font-size: 1rem;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 3rem;
+    }
+
+    @keyframes slideInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .stat-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 20px;
+      padding: 1.75rem;
+      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+      animation: slideInUp 0.6s ease-out;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #dc2626, #ef4444);
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.4s;
+    }
+
+    .stat-card:hover::before {
+      transform: scaleX(1);
+    }
+
+    .stat-card:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(220, 38, 38, 0.5);
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 20px 40px rgba(220, 38, 38, 0.2),
+                  0 0 0 1px rgba(220, 38, 38, 0.1);
+    }
+
+    .stat-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-icon {
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #dc2626;
+      font-size: 1.75rem;
+      transition: all 0.3s;
+      box-shadow: 0 8px 16px rgba(220, 38, 38, 0.2);
+    }
+
+    .stat-card:hover .stat-icon {
+      transform: rotate(10deg) scale(1.1);
+      box-shadow: 0 12px 24px rgba(220, 38, 38, 0.3);
+    }
+
+    .stat-value {
+      font-size: 2.75rem;
+      font-weight: 800;
+      margin-bottom: 0.25rem;
+      background: linear-gradient(135deg, #fff 0%, #f5f7fb 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-label {
+      color: #9ca3af;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-trend {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      color: #10b981;
+      margin-bottom: 1rem;
+    }
+
+    .stat-trend ion-icon {
+      font-size: 1.1rem;
+    }
+
+    .stat-trend.positive {
+      color: #10b981;
+    }
+
+    .stat-bar {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 1rem;
+    }
+
+    .stat-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #dc2626, #ef4444);
+      border-radius: 999px;
+      transition: width 1s ease-out;
+      box-shadow: 0 0 10px rgba(220, 38, 38, 0.5);
+    }
+
+    /* Recent Activity */
+    .section {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: between;
+      margin-bottom: 1.5rem;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .activity-list {
+      list-style: none;
+    }
+
+    .activity-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      margin-bottom: 0.75rem;
+      transition: all 0.3s;
+    }
+
+    .activity-item:hover {
+      background: rgba(0, 0, 0, 0.5);
+      border-color: rgba(220, 38, 38, 0.3);
+    }
+
+    .activity-info h4 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .activity-info p {
+      font-size: 0.875rem;
+      color: #9ca3af;
+    }
+
+    .badge {
+      padding: 0.375rem 0.875rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-success {
+      background: rgba(16, 185, 129, 0.2);
+      color: #10b981;
+    }
+
+    .badge-warning {
+      background: rgba(245, 158, 11, 0.2);
+      color: #f59e0b;
+    }
+
+    .badge-primary {
+      background: rgba(220, 38, 38, 0.2);
+      color: #dc2626;
+    }
   </style>
 </head>
 <body>
-<div class="container">
-  <!-- FR: Barre latérale (textes en anglais uniquement) -->
-  <div class="navigation">
-    <ul>
-      <li style="background:transparent">
-        <a href="index.php">
-          <span class="icon"><ion-icon name="barbell-outline"></ion-icon></span>
-          <span class="title">MyGym — Admin</span>
+  <div class="container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="logo">
+        <svg width="180" height="50" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(5, 15)">
+            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradient1)"/>
+            <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+          </g>
+          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradient)" letter-spacing="2">MyGym</text>
+          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#9ca3af" letter-spacing="3">PERFORMANCE CLUB</text>
+          <defs>
+            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="100%" stop-color="#991b1b"/>
+            </linearGradient>
+            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="50%" stop-color="#ef4444"/>
+              <stop offset="100%" stop-color="#dc2626"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+
+      <nav>
+        <ul class="nav-menu">
+          <li class="nav-item">
+            <a href="index.php" class="nav-link active">
+              <ion-icon name="grid"></ion-icon>
+              <span>Dashboard</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="users.php" class="nav-link">
+              <ion-icon name="people"></ion-icon>
+              <span>Users</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="courses.php" class="nav-link">
+              <ion-icon name="barbell"></ion-icon>
+              <span>Activities & Classes</span>
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="subscriptions.php" class="nav-link">
+              <ion-icon name="card"></ion-icon>
+              <span>Subscriptions</span>
+            </a>
+          </li>
+        </ul>
+
+        <a href="/MyGym/backend/logout.php" class="logout-btn">
+          <ion-icon name="log-out"></ion-icon>
+          <span>Logout</span>
         </a>
-      </li>
-      <li><a href="index.php" class="active"><span class="icon"><ion-icon name="home-outline"></ion-icon></span><span class="title">Dashboard</span></a></li>
-      <li><a href="users.php"><span class="icon"><ion-icon name="people-outline"></ion-icon></span><span class="title">Users</span></a></li> <!-- (EN) Utilisateurs -->
-      <li><a href="courses.php"><span class="icon"><ion-icon name="calendar-outline"></ion-icon></span><span class="title">Activities & Classes</span></a></li> <!-- (EN) Activités & Cours -->
-      <li><a href="subscriptions.php"><span class="icon"><ion-icon name="card-outline"></ion-icon></span><span class="title">Subscriptions & Payments</span></a></li> <!-- (EN) Abonnements & Paiements -->
-      <li><a href="/MyGym/backend/logout.php"><span class="icon"><ion-icon name="log-out-outline"></ion-icon></span><span class="title">Logout</span></a></li> <!-- (EN) Déconnexion -->
-    </ul>
-  </div>
+      </nav>
+    </aside>
 
-  <!-- FR: Zone principale -->
-  <div class="main">
-    <div class="topbar">
-      <div style="width:60px;text-align:center"><ion-icon name="menu-outline" style="font-size:2rem"></ion-icon></div>
-      <div class="topbar-right">
-        <div class="title-top">Hello, <?= htmlspecialchars($userName) ?></div> <!-- (EN) Bonjour -->
-      </div>
-    </div>
-
-    <div class="wrap">
-      <!-- FR: Cartes KPI -->
-      <div class="grid4">
-        <div class="card">
-          <div>
-            <div class="numbers"><?= (int)$stats['MEMBER'] ?></div>
-            <div class="cardName">Members</div> <!-- (EN) Membres -->
-          </div>
-          <div class="iconBx"><ion-icon name="people-outline"></ion-icon></div>
-        </div>
-        <div class="card">
-          <div>
-            <div class="numbers"><?= (int)$stats['COACH'] ?></div>
-            <div class="cardName">Coaches</div> <!-- (EN) Coachs -->
-          </div>
-          <div class="iconBx"><ion-icon name="person-outline"></ion-icon></div>
-        </div>
-        <div class="card">
-          <div>
-            <div class="numbers"><?= (int)$weeklyCourses ?></div>
-            <div class="cardName">Classes / week</div> <!-- (EN) Cours / semaine -->
-          </div>
-          <div class="iconBx"><ion-icon name="calendar-outline"></ion-icon></div>
-        </div>
-        <div class="card">
-          <div>
-            <div class="numbers"><?= euro_from_cents($monthRevenueCents) ?></div>
-            <div class="cardName">Revenue (month)</div> <!-- (EN) Revenus (mois) -->
-          </div>
-          <div class="iconBx"><ion-icon name="cash-outline"></ion-icon></div>
-        </div>
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="header">
+        <h1>Welcome back, <?= htmlspecialchars($userName) ?>!</h1>
+        <p>Here's what's happening with your gym today.</p>
       </div>
 
-      <!-- FR: Deux colonnes -->
-      <div class="cols">
-        <!-- FR: Abonnements récents -->
-        <div class="panel">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <h2 style="color:var(--primary)">Recent subscriptions</h2> <!-- (EN) Abonnements récents -->
-            <div style="color:#666;font-size:.9rem">
-              Revenue period: <?= htmlspecialchars((new DateTime($firstDay))->format('d/m/Y')) ?>
-              → <?= htmlspecialchars((new DateTime($lastDay))->format('d/m/Y')) ?>
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card stat-members">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">Total Members</div>
+              <div class="stat-value"><?= number_format($totalMembers) ?></div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="people"></ion-icon>
             </div>
           </div>
-          <table>
-            <thead><tr><td>Member</td><td>Plan</td><td>Start</td><td>Status</td></tr></thead> <!-- (EN) Membre/Type/Début/Statut -->
-            <tbody>
-              <?php if (!$recentSubs): ?>
-                <tr><td colspan="4" style="color:#666;text-align:center">No recent subscriptions.</td></tr> <!-- (EN) Aucun abonnement récent -->
-              <?php else: foreach ($recentSubs as $r): ?>
-                <tr>
-                  <td><?= htmlspecialchars($r['fullname']) ?></td>
-                  <td><?= htmlspecialchars($r['plan_name']) ?></td>
-                  <td><?= htmlspecialchars($r['start_date'] ?: ($r['created_at'] ?? '—')) ?></td>
-                  <td><span class="status <?= htmlspecialchars($r['status']) ?>"><?= htmlspecialchars($r['status']) ?></span></td>
-                </tr>
-              <?php endforeach; endif; ?>
-            </tbody>
-          </table>
+          <div class="stat-trend">
+            <ion-icon name="trending-up"></ion-icon>
+            <span>+12% this month</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="width: 78%;"></div>
+          </div>
         </div>
 
-        <!-- FR: Revenus mensuels (liste) -->
-        <div class="panel">
-          <h2 style="color:var(--primary)">Monthly revenue</h2> <!-- (EN) Revenus par mois -->
-          <?php if (!$notes): ?>
-            <p style="color:#666">No data yet.</p> <!-- (EN) Pas encore de données -->
-          <?php else: ?>
-            <ul style="margin:10px 0 0 18px;line-height:1.8">
-              <?php foreach ($notes as $line): ?>
-                <li><?= htmlspecialchars($line) ?></li>
-              <?php endforeach; ?>
-            </ul>
-          <?php endif; ?>
+        <div class="stat-card stat-coaches">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">Active Coaches</div>
+              <div class="stat-value"><?= number_format($totalCoaches) ?></div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="person"></ion-icon>
+            </div>
+          </div>
+          <div class="stat-trend">
+            <ion-icon name="trending-up"></ion-icon>
+            <span>+3 new coaches</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="width: 65%;"></div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-subscriptions">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">Active Subscriptions</div>
+              <div class="stat-value"><?= number_format($activeSubscriptions) ?></div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="card"></ion-icon>
+            </div>
+          </div>
+          <div class="stat-trend">
+            <ion-icon name="trending-up"></ion-icon>
+            <span>+8% growth</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="width: 85%;"></div>
+          </div>
+        </div>
+
+        <div class="stat-card stat-retention">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">Retention Rate</div>
+              <div class="stat-value">94%</div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="trophy"></ion-icon>
+            </div>
+          </div>
+          <div class="stat-trend positive">
+            <ion-icon name="checkmark-circle"></ion-icon>
+            <span>Excellent performance</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="width: 94%;"></div>
+          </div>
         </div>
       </div>
-    </div>
 
+      <!-- Recent Subscriptions -->
+      <div class="section">
+        <div class="section-header">
+          <h2 class="section-title">Recent Subscriptions</h2>
+        </div>
+        <ul class="activity-list">
+          <?php if (empty($recentSubs)): ?>
+            <li class="activity-item">
+              <div class="activity-info">
+                <p style="color: #9ca3af;">No recent subscriptions</p>
+              </div>
+            </li>
+          <?php else: ?>
+            <?php foreach ($recentSubs as $sub): ?>
+              <li class="activity-item">
+                <div class="activity-info">
+                  <h4><?= htmlspecialchars($sub['fullname']) ?></h4>
+                  <p><?= htmlspecialchars($sub['plan_name']) ?> • <?= date('M d, Y', strtotime($sub['created_at'])) ?></p>
+                </div>
+                <span class="badge badge-<?= $sub['status'] === 'ACTIVE' ? 'success' : ($sub['status'] === 'PENDING' ? 'warning' : 'primary') ?>">
+                  <?= htmlspecialchars($sub['status']) ?>
+                </span>
+              </li>
+            <?php endforeach; ?>
+          <?php endif; ?>
+        </ul>
+      </div>
+    </main>
   </div>
-</div>
 </body>
 </html>

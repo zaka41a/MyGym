@@ -1,43 +1,35 @@
 <?php
 declare(strict_types=1);
-session_start();
 
-// Authentification et rôles requis
 require_once __DIR__ . '/../backend/auth.php';
 requireRole('MEMBER','ADMIN');
 require_once __DIR__ . '/../backend/db.php';
-require_once __DIR__ . '/../backend/subscriptions.php'; // <= import
+require_once __DIR__ . '/../backend/subscriptions.php';
 
-// Génération du token CSRF si absent
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32));
 $CSRF = $_SESSION['csrf'];
 
 $userId   = (int)($_SESSION['user']['id'] ?? 0);
 $userName = $_SESSION['user']['fullname'] ?? 'Member';
 
-// Messages de retour (succès/erreur)
-$ok  = $_GET['ok']  ?? null; 
+$ok  = $_GET['ok']  ?? null;
 $err = $_GET['err'] ?? null;
 
-/* Accès aux cours (vérifie si plan PLUS/PRO) */
 $canBook = false;
-try { 
-  $canBook = has_class_access($pdo, $userId); 
-} catch (Throwable $e) { 
-  $canBook = false; 
+try {
+  $canBook = has_class_access($pdo, $userId);
+} catch (Throwable $e) {
+  $canBook = false;
 }
 
-/* Gestion des actions POST */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   try {
-    // Vérification CSRF
     if (!hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
       throw new RuntimeException('Invalid CSRF token.');
     }
 
     $action = (string)($_POST['action'] ?? '');
 
-    // Choisir un plan
     if ($action === 'choose_plan') {
       $planId = (int)($_POST['plan_id'] ?? 0);
       if ($planId <= 0) throw new RuntimeException('Invalid plan.');
@@ -51,7 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       exit;
     }
 
-    // Annuler un abonnement actif
     if ($action === 'cancel_active') {
       $sid = (int)($_POST['id'] ?? 0);
       if ($sid <= 0) {
@@ -67,7 +58,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       exit;
     }
 
-    // Annuler une demande en attente
     if ($action === 'cancel_request') {
       $sid = (int)($_POST['id'] ?? 0);
       if ($sid <= 0) {
@@ -90,7 +80,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 
-/* Récupération des données de l’utilisateur */
 try {
   $active  = get_active_subscription($pdo, $userId);
   $pending = get_pending_request($pdo, $userId);
@@ -100,13 +89,12 @@ try {
   $plans = [];
 }
 
-/* Calcul des jours restants pour un abonnement actif */
 $daysLeft = null;
 if ($active && !empty($active['end_date'])) {
-  try { 
-    $end   = new DateTime($active['end_date']); 
-    $today = new DateTime('today'); 
-    $daysLeft = max(0,(int)$today->diff($end)->format('%r%a')); 
+  try {
+    $end   = new DateTime($active['end_date']);
+    $today = new DateTime('today');
+    $daysLeft = max(0,(int)$today->diff($end)->format('%r%a'));
   }
   catch(Throwable $e){ $daysLeft=null; }
 }
@@ -114,113 +102,231 @@ if ($active && !empty($active['end_date'])) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>My Subscription — MyGym</title>
-  <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
-  <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyGym — Member</title>
+  <?php include __DIR__ . '/../shared/head-meta.php'; ?>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
   <style>
-    @import url("https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap");
-    :root{--primary:#e50914;--primary-600:#cc0812;--white:#fff;--gray:#f5f5f5;--border:#e9e9e9;--black1:#222;--black2:#999;--shadow:0 7px 25px rgba(0,0,0,.08);--green:#28a745;--amber:#ffb703}
-    *{box-sizing:border-box;margin:0;padding:0;font-family:"Ubuntu",system-ui,Segoe UI,Roboto,sans-serif}
-    body{background:var(--gray)}
-    .container{position:relative;width:100%}
-    .navigation{position:fixed;width:300px;height:100%;background:var(--primary);box-shadow:var(--shadow)}
-    .navigation ul{position:absolute;inset:0}
-    .navigation a{display:flex;height:60px;align-items:center;color:#fff;text-decoration:none;padding-left:10px}
-    .navigation .icon{min-width:50px;text-align:center}
-    .navigation li{list-style:none} .navigation li:hover,.navigation li.active{background:var(--primary-600)}
-    .main{position:absolute;left:300px;width:calc(100% - 300px);min-height:100vh;background:#fff}
-    .topbar{height:60px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border)}
-    .wrap{max-width:1000px;margin:0 auto;padding:20px}
-    .alert{padding:10px 12px;border-radius:8px;margin:10px 0}
-    .ok{background:#e8f5e9;border:1px solid #c8e6c9} .err{background:#fdecea;border:1px solid #f5c6cb}
-    .card{border:1px solid var(--border);border-radius:12px;padding:18px;box-shadow:var(--shadow);background:#fff}
-    .price{font-size:2rem;font-weight:800;color:var(--primary)}
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-    .btn{display:inline-block;background:var(--primary);color:#fff;border:0;border-radius:8px;padding:.5rem .9rem;font-weight:600;text-decoration:none;cursor:pointer}
-    .btn--ghost{background:#333}
-    .muted{color:#666}
-    @media (max-width:900px){.main{left:0;width:100%}.grid{grid-template-columns:1fr}}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0a;
+      color: #f5f7fb;
+      min-height: 100vh;
+      background: radial-gradient(55% 80% at 50% 0%, rgba(220, 38, 38, 0.22), transparent 65%),
+                  radial-gradient(60% 90% at 75% 15%, rgba(127, 29, 29, 0.18), transparent 70%),
+                  linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 1) 100%);
+    }
+    .container { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 280px; background: rgba(17, 17, 17, 0.95);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2rem 1.5rem; position: fixed; height: 100vh; overflow-y: auto;
+    }
+    .logo { display: flex; align-items: center; gap: 1rem; margin-bottom: 3rem; }
+    .logo-icon {
+      width: 48px; height: 48px;
+      background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
+      border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; box-shadow: 0 10px 30px rgba(220,38,38,0.4);
+    }
+    .logo-text h1 {
+      font-size: 1.5rem; font-weight: 800;
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .logo-text p { font-size: 0.75rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; }
+    .nav-menu { list-style: none; margin: 2rem 0; }
+    .nav-item { margin-bottom: 0.5rem; }
+    .nav-link {
+      display: flex; align-items: center; gap: 1rem; padding: 1rem; color: #9ca3af;
+      text-decoration: none; border-radius: 12px; transition: all 0.3s; font-weight: 500;
+    }
+    .nav-link:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+    .nav-link.active {
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+      color: #fff; box-shadow: 0 4px 20px rgba(220,38,38,0.3);
+    }
+    .nav-link.locked { opacity: 0.6; }
+    .nav-link ion-icon { font-size: 1.25rem; }
+    .logout-btn {
+      display: flex; align-items: center; gap: 1rem; padding: 1rem;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px; color: #9ca3af; text-decoration: none; transition: all 0.3s;
+      font-weight: 500; margin-top: 2rem;
+    }
+    .logout-btn:hover { background: rgba(220, 38, 38, 0.2); color: #fff; border-color: #dc2626; }
+    .main-content { margin-left: 280px; flex: 1; padding: 2rem; }
+    .header { margin-bottom: 2rem; }
+    .header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .alert { padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; font-weight: 500; }
+    .alert.ok { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; }
+    .alert.err { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
+    .status-card {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px; padding: 2rem; margin-bottom: 2rem;
+    }
+    .status-card.active { border-left: 4px solid #4ade80; }
+    .status-card.pending { border-left: 4px solid #facc15; }
+    .plans-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+    .plan-card {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px; padding: 2rem; transition: all 0.3s;
+    }
+    .plan-card:hover { transform: translateY(-5px); border-color: #dc2626; box-shadow: 0 20px 40px rgba(220,38,38,0.3); }
+    .plan-name { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .plan-price { font-size: 2.5rem; font-weight: 800; color: #dc2626; margin-bottom: 1rem; }
+    .plan-price span { font-size: 1rem; color: #9ca3af; font-weight: 500; }
+    .plan-features { list-style: none; margin: 1.5rem 0; }
+    .plan-features li {
+      padding: 0.5rem 0; color: #9ca3af; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .plan-features ion-icon { color: #4ade80; font-size: 1.2rem; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+      color: #fff; border: none; border-radius: 10px; padding: 0.75rem 1.5rem;
+      font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: 'Poppins', sans-serif;
+      text-decoration: none; width: 100%; justify-content: center;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(220, 38, 38, 0.4); }
+    .btn-dark { background: rgba(255, 255, 255, 0.1); }
+    .btn-dark:hover { background: rgba(255, 255, 255, 0.15); }
+    .days-badge {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      background: rgba(34, 197, 94, 0.2); color: #4ade80;
+      padding: 0.5rem 1rem; border-radius: 20px; font-weight: 600; margin-top: 1rem;
+    }
+    @media (max-width: 991px) {
+      .sidebar { width: 0; opacity: 0; }
+      .main-content { margin-left: 0; }
+      .plans-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
-<div class="container">
-  <div class="navigation">
-    <ul>
-      <li><a href="index.php"><span class="icon"><ion-icon name="home-outline"></ion-icon></span><span class="title">Dashboard</span></a></li>
-      <li>
-        <?php if ($canBook): ?>
-          <a href="courses.php"><span class="icon"><ion-icon name="calendar-outline"></ion-icon></span><span class="title">My Classes</span></a>
-        <?php else: ?>
-          <a href="subscribe.php" title="Reservations available with Plus/Pro" style="opacity:.75">
-            <span class="icon"><ion-icon name="lock-closed-outline"></ion-icon></span>
-            <span class="title">My Classes (locked)</span>
-          </a>
-        <?php endif; ?>
-      </li>
-      <li class="active"><a href="subscribe.php"><span class="icon"><ion-icon name="card-outline"></ion-icon></span><span class="title">My Subscription</span></a></li>
-      <li><a href="profile.php"><span class="icon"><ion-icon name="person-circle-outline"></ion-icon></span><span class="title">Profile</span></a></li>
-      <li><a href="/MyGym/backend/logout.php"><span class="icon"><ion-icon name="log-out-outline"></ion-icon></span><span class="title">Sign out</span></a></li>
-    </ul>
-  </div>
+  <div class="container">
+    <aside class="sidebar">
+      <div class="logo">
+        <svg width="180" height="50" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <g transform="translate(5, 15)">
+            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradient1)"/>
+            <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
+            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+          </g>
+          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradient)" letter-spacing="2">MyGym</text>
+          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#9ca3af" letter-spacing="3">PERFORMANCE CLUB</text>
+          <defs>
+            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="100%" stop-color="#991b1b"/>
+            </linearGradient>
+            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#dc2626"/>
+              <stop offset="50%" stop-color="#ef4444"/>
+              <stop offset="100%" stop-color="#dc2626"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <nav>
+        <ul class="nav-menu">
+          <li class="nav-item"><a href="index.php" class="nav-link"><ion-icon name="grid"></ion-icon><span>Dashboard</span></a></li>
+          <li class="nav-item">
+            <?php if ($canBook): ?>
+              <a href="courses.php" class="nav-link"><ion-icon name="calendar"></ion-icon><span>My Classes</span></a>
+            <?php else: ?>
+              <a href="subscribe.php" class="nav-link locked" title="Upgrade to PLUS/PRO to unlock"><ion-icon name="lock-closed"></ion-icon><span>My Classes (Locked)</span></a>
+            <?php endif; ?>
+          </li>
+          <li class="nav-item"><a href="subscribe.php" class="nav-link active"><ion-icon name="card"></ion-icon><span>Subscription</span></a></li>
+          <li class="nav-item"><a href="profile.php" class="nav-link"><ion-icon name="person-circle"></ion-icon><span>Profile</span></a></li>
+        </ul>
+        <a href="/MyGym/backend/logout.php" class="logout-btn"><ion-icon name="log-out"></ion-icon><span>Logout</span></a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="header">
+        <h1>My Subscription</h1>
+        <p style="color: #9ca3af;">Manage your membership plan and benefits</p>
+      </div>
 
-  <div class="main">
-    <div class="topbar">
-      <div style="width:60px;text-align:center"><ion-icon name="menu-outline" style="font-size:2rem"></ion-icon></div>
-      <div style="font-weight:700;color:#e50914">My Subscription</div>
-    </div>
-
-    <div class="wrap">
       <?php if ($ok): ?><div class="alert ok"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
       <?php if ($err): ?><div class="alert err"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 
       <?php if ($active): ?>
-        <!-- Cas : abonnement actif -->
-        <div class="card" style="border-left:6px solid var(--green)">
-          <h2 style="margin:0 0 6px">Active Subscription — <?= htmlspecialchars($active['plan_name']) ?></h2>
-          <div class="muted">Start: <?= htmlspecialchars($active['start_date'] ?: '—') ?> | End: <?= htmlspecialchars($active['end_date'] ?: '—') ?></div>
-          <p style="margin-top:8px"><strong><?= (int)$daysLeft ?> day(s) left</strong></p>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
-            <a class="btn" href="index.php">Back to Dashboard</a>
-            <form method="post" onsubmit="return confirm('Confirm subscription cancellation?');">
+        <div class="status-card active">
+          <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+            <ion-icon name="checkmark-circle" style="font-size:3rem;color:#4ade80"></ion-icon>
+            <div>
+              <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.25rem">Active Subscription</h2>
+              <p style="font-size:1.25rem;color:#dc2626;font-weight:600"><?= htmlspecialchars($active['plan_name']) ?></p>
+            </div>
+          </div>
+          <div style="color:#9ca3af;margin-bottom:1rem">
+            <strong>Start:</strong> <?= htmlspecialchars($active['start_date'] ?: '—') ?> &nbsp;|&nbsp;
+            <strong>End:</strong> <?= htmlspecialchars($active['end_date'] ?: '—') ?>
+          </div>
+          <?php if ($daysLeft !== null): ?>
+            <div class="days-badge">
+              <ion-icon name="time"></ion-icon>
+              <strong><?= (int)$daysLeft ?> day(s) remaining</strong>
+            </div>
+          <?php endif; ?>
+          <div style="display:flex;gap:1rem;margin-top:1.5rem;flex-wrap:wrap">
+            <a class="btn" href="index.php" style="flex:1">
+              <ion-icon name="arrow-back"></ion-icon> Back to Dashboard
+            </a>
+            <form method="post" onsubmit="return confirm('Confirm subscription cancellation?');" style="flex:1">
               <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
               <input type="hidden" name="action" value="cancel_active">
               <input type="hidden" name="id" value="<?= (int)($active['id'] ?? 0) ?>">
-              <button class="btn btn--ghost" type="submit">Cancel Subscription</button>
+              <button class="btn btn-dark" type="submit">
+                <ion-icon name="close-circle"></ion-icon> Cancel Subscription
+              </button>
             </form>
           </div>
         </div>
 
       <?php elseif ($pending): ?>
-        <!-- Cas : demande en attente -->
-        <div class="card" style="border-left:6px solid var(--amber)">
-          <h2 style="margin:0 0 6px">Pending Request — <?= htmlspecialchars($pending['plan_name']) ?></h2>
-          <div class="muted">An administrator must validate your request.</div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <div class="status-card pending">
+          <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1rem">
+            <ion-icon name="time" style="font-size:3rem;color:#facc15"></ion-icon>
+            <div>
+              <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.25rem">Pending Request</h2>
+              <p style="font-size:1.25rem;color:#dc2626;font-weight:600"><?= htmlspecialchars($pending['plan_name']) ?></p>
+            </div>
+          </div>
+          <p style="color:#9ca3af">An administrator must validate your subscription request.</p>
+          <div style="margin-top:1.5rem">
             <form method="post" onsubmit="return confirm('Cancel this request?');">
               <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
               <input type="hidden" name="action" value="cancel_request">
               <input type="hidden" name="id" value="<?= (int)($pending['id'] ?? 0) ?>">
-              <button class="btn btn--ghost" type="submit">Cancel Request</button>
+              <button class="btn btn-dark" type="submit">
+                <ion-icon name="close-circle"></ion-icon> Cancel Request
+              </button>
             </form>
           </div>
         </div>
 
       <?php else: ?>
-        <!-- Cas : aucun abonnement -->
-        <h2 style="margin:0 0 8px">Choose a Plan</h2>
-        <div class="grid">
+        <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1.5rem">Choose Your Plan</h2>
+        <div class="plans-grid">
           <?php foreach ($plans as $p): ?>
-            <div class="card">
-              <h3 style="margin:0 0 6px"><?= htmlspecialchars($p['name']) ?></h3>
-              <div class="price">$<?= number_format($p['price_cents']/100, 0) ?><span class="muted">/mo</span></div>
-              <ul style="margin:10px 0 0 18px">
+            <div class="plan-card">
+              <div class="plan-name"><?= htmlspecialchars($p['name']) ?></div>
+              <div class="plan-price">$<?= number_format($p['price_cents']/100, 0) ?><span>/month</span></div>
+              <ul class="plan-features">
                 <?php foreach (explode("\n", (string)$p['features']) as $f): if(trim($f)==='') continue; ?>
-                  <li><?= htmlspecialchars(ltrim($f, "- ")) ?></li>
+                  <li><ion-icon name="checkmark-circle"></ion-icon><?= htmlspecialchars(ltrim($f, "- ")) ?></li>
                 <?php endforeach; ?>
               </ul>
-              <form method="post" style="margin-top:12px">
+              <form method="post">
                 <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
                 <input type="hidden" name="action" value="choose_plan">
                 <input type="hidden" name="plan_id" value="<?= (int)$p['id'] ?>">
@@ -230,8 +336,7 @@ if ($active && !empty($active['end_date'])) {
           <?php endforeach; ?>
         </div>
       <?php endif; ?>
-    </div>
+    </main>
   </div>
-</div>
 </body>
 </html>
