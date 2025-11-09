@@ -141,7 +141,12 @@
   }
 
   .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
     margin-bottom: 3rem;
+    flex-wrap: wrap;
+    gap: 1.5rem;
   }
 
   .header h1 {
@@ -157,6 +162,24 @@
   .header p {
     color: #9ca3af;
     font-size: 1rem;
+  }
+
+  .header-date {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #9ca3af;
+    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  .header-date ion-icon {
+    font-size: 1.25rem;
+    color: #dc2626;
   }
 
   /* Stats Grid */
@@ -240,6 +263,47 @@
     box-shadow: 0 12px 24px rgba(220, 38, 38, 0.3);
   }
 
+  /* Individual stat card colors */
+  .stat-card.stat-members .stat-icon {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.2) 100%);
+    color: #3b82f6;
+    box-shadow: 0 8px 16px rgba(59, 130, 246, 0.2);
+  }
+
+  .stat-card.stat-members:hover .stat-icon {
+    box-shadow: 0 12px 24px rgba(59, 130, 246, 0.3);
+  }
+
+  .stat-card.stat-coaches .stat-icon {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.2) 100%);
+    color: #10b981;
+    box-shadow: 0 8px 16px rgba(16, 185, 129, 0.2);
+  }
+
+  .stat-card.stat-coaches:hover .stat-icon {
+    box-shadow: 0 12px 24px rgba(16, 185, 129, 0.3);
+  }
+
+  .stat-card.stat-subscriptions .stat-icon {
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.2) 0%, rgba(147, 51, 234, 0.2) 100%);
+    color: #a855f7;
+    box-shadow: 0 8px 16px rgba(168, 85, 247, 0.2);
+  }
+
+  .stat-card.stat-subscriptions:hover .stat-icon {
+    box-shadow: 0 12px 24px rgba(168, 85, 247, 0.3);
+  }
+
+  .stat-card.stat-revenue .stat-icon {
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(217, 119, 6, 0.2) 100%);
+    color: #f59e0b;
+    box-shadow: 0 8px 16px rgba(245, 158, 11, 0.2);
+  }
+
+  .stat-card.stat-revenue:hover .stat-icon {
+    box-shadow: 0 12px 24px rgba(245, 158, 11, 0.3);
+  }
+
   .stat-value {
     font-size: 2.75rem;
     font-weight: 800;
@@ -292,6 +356,20 @@
     box-shadow: 0 0 10px rgba(220, 38, 38, 0.5);
   }
 
+  /* Dashboard Row Layout */
+  .dashboard-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    margin-bottom: 2rem;
+  }
+
+  @media (max-width: 991px) {
+    .dashboard-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
   /* Section/Panel */
   .section {
     background: rgba(255, 255, 255, 0.05);
@@ -312,6 +390,227 @@
   .section-title {
     font-size: 1.5rem;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .section-title ion-icon {
+    color: #dc2626;
+    font-size: 1.75rem;
+  }
+
+  .view-all-link {
+    color: #dc2626;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .view-all-link:hover {
+    color: #ef4444;
+    transform: translateX(4px);
+  }
+
+  /* Quick Actions Panel */
+  .quick-actions-panel {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 2rem;
+    animation: slideInUp 0.6s ease-out 0.3s both;
+  }
+
+  .quick-actions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  .quick-action-card {
+    position: relative;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    text-decoration: none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+
+  .quick-action-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, #dc2626, #ef4444);
+    transform: scaleY(0);
+    transition: transform 0.3s;
+  }
+
+  .quick-action-card:hover::before {
+    transform: scaleY(1);
+  }
+
+  .quick-action-card:hover {
+    background: rgba(0, 0, 0, 0.5);
+    border-color: rgba(220, 38, 38, 0.5);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(220, 38, 38, 0.2);
+  }
+
+  .quick-action-icon {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1.5rem;
+    color: #dc2626;
+    transition: all 0.3s;
+  }
+
+  .quick-action-card:hover .quick-action-icon {
+    transform: scale(1.1) rotate(5deg);
+  }
+
+  .quick-action-info h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 0.25rem;
+  }
+
+  .quick-action-info p {
+    font-size: 0.8rem;
+    color: #9ca3af;
+  }
+
+  .quick-action-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  /* Performance Chart */
+  .performance-chart {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 2rem;
+    animation: slideInUp 0.6s ease-out 0.4s both;
+  }
+
+  .chart-container {
+    margin-top: 1.5rem;
+  }
+
+  .chart-bars {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    height: 180px;
+    margin-bottom: 2rem;
+    padding: 0 0.5rem;
+  }
+
+  .chart-bar {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    position: relative;
+  }
+
+  .chart-bar-fill {
+    width: 100%;
+    height: var(--height, 0%);
+    background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+    border-radius: 8px 8px 0 0;
+    position: relative;
+    animation: growHeight 1.2s ease-out forwards;
+    box-shadow: 0 -4px 20px rgba(220, 38, 38, 0.3);
+    transition: all 0.3s;
+  }
+
+  @keyframes growHeight {
+    from {
+      height: 0;
+      opacity: 0;
+    }
+    to {
+      height: var(--height);
+      opacity: 1;
+    }
+  }
+
+  .chart-bar:hover .chart-bar-fill {
+    background: linear-gradient(180deg, #f87171 0%, #ef4444 100%);
+    box-shadow: 0 -6px 24px rgba(220, 38, 38, 0.5);
+  }
+
+  .chart-label {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-top: 0.5rem;
+  }
+
+  .chart-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .chart-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .chart-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #fff 0%, #f5f7fb 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .chart-stat-label {
+    font-size: 0.8rem;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Activity Section */
+  .activity-section {
+    animation-delay: 0.5s;
   }
 
   /* Activity List */
@@ -322,19 +621,54 @@
   .activity-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 1rem;
     padding: 1.25rem;
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 12px;
     margin-bottom: 0.75rem;
     transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .activity-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    width: 3px;
+    background: linear-gradient(180deg, #dc2626, #ef4444);
+    transform: scaleY(0);
+    transition: transform 0.3s;
+  }
+
+  .activity-item:hover::before {
+    transform: scaleY(1);
   }
 
   .activity-item:hover {
     background: rgba(0, 0, 0, 0.5);
     border-color: rgba(220, 38, 38, 0.3);
-    transform: translateX(4px);
+    transform: translateX(6px);
+  }
+
+  .activity-avatar {
+    width: 48px;
+    height: 48px;
+    background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 2rem;
+    color: #dc2626;
+  }
+
+  .activity-info {
+    flex: 1;
   }
 
   .activity-info h4 {
@@ -521,6 +855,30 @@
     .stats-grid {
       grid-template-columns: repeat(2, 1fr);
     }
+    .quick-actions-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+    }
+
+    .header-date {
+      align-self: stretch;
+      justify-content: center;
+    }
+
+    .chart-bars {
+      height: 150px;
+      gap: 0.5rem;
+    }
   }
 
   @media (max-width: 640px) {
@@ -530,5 +888,58 @@
     .form-grid {
       grid-template-columns: 1fr;
     }
+    .main-content {
+      padding: 1rem;
+    }
+
+    .section {
+      padding: 1.5rem;
+    }
+
+    .quick-actions-panel,
+    .performance-chart {
+      padding: 1.5rem;
+    }
+  }
+
+  /* Additional animations for staggered entry */
+  .stat-card:nth-child(1) {
+    animation-delay: 0.1s;
+  }
+
+  .stat-card:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .stat-card:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+
+  .stat-card:nth-child(4) {
+    animation-delay: 0.4s;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #dc2626, #ef4444);
+    border-radius: 5px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #ef4444, #f87171);
   }
 </style>

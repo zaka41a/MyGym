@@ -2,9 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../backend/auth.php';
-requireRole('MEMBER','ADMIN');
+requireRole('COACH','ADMIN');
 require_once __DIR__ . '/../backend/db.php';
-require_once __DIR__ . '/../backend/subscriptions.php';
 
 if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32));
 $CSRF = $_SESSION['csrf'];
@@ -13,17 +12,14 @@ $user = $_SESSION['user'] ?? null;
 $userId = (int)($user['id'] ?? 0);
 if ($userId <= 0) { http_response_code(401); exit('Access denied.'); }
 
-$canBook = false;
-try { $canBook = has_class_access($pdo, $userId); } catch (Throwable $e) { $canBook = false; }
-
 $rootDir      = dirname(__DIR__);
 $uploadDirFS  = $rootDir . '/uploads/avatars';
 $uploadDirWeb = '/MyGym/uploads/avatars';
-@is_dir($uploadDirFS) || @mkdir($uploadDirFS, 0777, true);
+if (!is_dir($uploadDirFS)) @mkdir($uploadDirFS, 0755, true);
 
 $stmt = $pdo->prepare("SELECT fullname, email, username, avatar FROM users WHERE id=:id");
 $stmt->execute([':id' => $userId]);
-$me = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['fullname'=>'','email'=>'','username'=>'','avatar'=>null];
+$me = $stmt->fetch(PDO::FETCH_ASSOC) ?: ['fullname'=>'','email'=>'','username'=>'','avatar'=>''];
 
 $ok  = $_GET['ok']  ?? null;
 $err = $_GET['err'] ?? null;
@@ -34,7 +30,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       throw new RuntimeException('Invalid CSRF.');
     }
 
-    if (($_POST['action'] ?? '') === 'upload_avatar') {
+    $action = (string)($_POST['action'] ?? '');
+
+    if ($action === 'upload_avatar') {
       if (!isset($_FILES['avatar']) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK) {
         throw new RuntimeException("Invalid upload.");
       }
@@ -44,21 +42,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       $finfo = new finfo(FILEINFO_MIME_TYPE);
       $mime  = (string)$finfo->file($tmp);
-      $ext   = match($mime){'image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp',default=>null};
+      $ext   = match($mime){
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/webp' => 'webp',
+        default => null
+      };
       if (!$ext) throw new RuntimeException("Unsupported format (jpg/png/webp).");
 
       foreach (['jpg','png','webp'] as $e) { @unlink($uploadDirFS."/user_{$userId}.{$e}"); }
-      $destFS = $uploadDirFS . "/user_{$userId}.{$ext}";
-      if (!move_uploaded_file($tmp, $destFS)) throw new RuntimeException("Unable to save avatar.");
-      @chmod($destFS, 0666);
 
-      $stmt = $pdo->prepare("UPDATE users SET avatar=:a WHERE id=:id");
-      $stmt->execute([':a'=>"user_{$userId}.{$ext}", ':id'=>$userId]);
+      $filename = "user_{$userId}.{$ext}";
+      if (!move_uploaded_file($tmp, $uploadDirFS.'/'.$filename)) {
+        throw new RuntimeException("Unable to save avatar.");
+      }
 
-      header('Location: '.$_SERVER['PHP_SELF'].'?ok='.urlencode('Photo updated.')); exit;
+      $st = $pdo->prepare("UPDATE users SET avatar=:a WHERE id=:id");
+      $st->execute([':a'=>$filename, ':id'=>$userId]);
+
+      header('Location: '.$_SERVER['PHP_SELF'].'?ok='.urlencode('Photo updated.'));
+      exit;
     }
 
-    if (($_POST['action'] ?? '') === 'save_profile') {
+    if ($action === 'save_profile') {
       $fullname = trim((string)($_POST['fullname'] ?? ''));
       $email    = trim((string)($_POST['email'] ?? ''));
       $username = trim((string)($_POST['username'] ?? ''));
@@ -81,12 +87,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $_SESSION['user']['email']    = $email;
       $_SESSION['user']['username'] = $username;
 
-      header('Location: '.$_SERVER['PHP_SELF'].'?ok='.urlencode('Profile updated.')); exit;
+      header('Location: '.$_SERVER['PHP_SELF'].'?ok='.urlencode('Profile updated.'));
+      exit;
     }
 
     throw new RuntimeException('Unknown action.');
   } catch (Throwable $e) {
-    header('Location: '.$_SERVER['PHP_SELF'].'?err='.urlencode($e->getMessage())); exit;
+    header('Location: '.$_SERVER['PHP_SELF'].'?err='.urlencode($e->getMessage()));
+    exit;
   }
 }
 
@@ -106,11 +114,102 @@ if (!$avatarUrl) { $avatarUrl = 'https://via.placeholder.com/120x120?text=+'; }
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MyGym — Member</title>
+  <title>MyGym — Coach</title>
   <?php include __DIR__ . '/../shared/head-meta.php'; ?>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
-  <?php include __DIR__ . '/../shared/member-styles.php'; ?>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0a;
+      color: #f5f7fb;
+      min-height: 100vh;
+      background: radial-gradient(55% 80% at 50% 0%, rgba(220, 38, 38, 0.22), transparent 65%),
+                  radial-gradient(60% 90% at 75% 15%, rgba(127, 29, 29, 0.18), transparent 70%),
+                  linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 1) 100%);
+    }
+    .container { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 280px; background: rgba(17, 17, 17, 0.95);
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2rem 1.5rem; position: fixed; height: 100vh; overflow-y: auto;
+    }
+    .logo { display: flex; align-items: center; gap: 1rem; margin-bottom: 3rem; }
+    .logo-icon {
+      width: 48px; height: 48px;
+      background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
+      border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; box-shadow: 0 10px 30px rgba(220,38,38,0.4);
+    }
+    .logo-text h1 {
+      font-size: 1.5rem; font-weight: 800;
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .logo-text p { font-size: 0.75rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; }
+    .nav-menu { list-style: none; margin: 2rem 0; }
+    .nav-item { margin-bottom: 0.5rem; }
+    .nav-link {
+      display: flex; align-items: center; gap: 1rem; padding: 1rem; color: #9ca3af;
+      text-decoration: none; border-radius: 12px; transition: all 0.3s; font-weight: 500;
+    }
+    .nav-link:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+    .nav-link.active {
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
+      color: #fff; box-shadow: 0 4px 20px rgba(220,38,38,0.3);
+    }
+    .nav-link ion-icon { font-size: 1.25rem; }
+    .logout-btn {
+      display: flex; align-items: center; gap: 1rem; padding: 1rem;
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px; color: #9ca3af; text-decoration: none; transition: all 0.3s;
+      font-weight: 500; margin-top: 2rem;
+    }
+    .logout-btn:hover { background: rgba(220, 38, 38, 0.2); color: #fff; border-color: #dc2626; }
+    .main-content { margin-left: 280px; flex: 1; padding: 2rem; max-width: 1000px; }
+    .header { margin-bottom: 2rem; }
+    .header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .section {
+      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px; padding: 2rem; margin-bottom: 2rem;
+    }
+    .section-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; }
+    .alert { padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; font-weight: 500; }
+    .alert.ok { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; }
+    .alert.err { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
+    .avatar-block {
+      display: flex; align-items: center; gap: 2rem; margin-top: 1rem;
+    }
+    .avatar-block img {
+      width: 120px; height: 120px; border-radius: 50%; object-fit: cover;
+      border: 3px solid rgba(220, 38, 38, 0.3); box-shadow: 0 10px 30px rgba(220,38,38,0.3);
+    }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem; }
+    label { display: block; color: #9ca3af; font-size: 0.9rem; font-weight: 500; margin-bottom: 0.5rem; }
+    input[type="text"], input[type="email"], input[type="password"], input[type="file"] {
+      width: 100%; padding: 0.75rem; background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; color: #f5f7fb;
+      font-family: 'Poppins', sans-serif; transition: all 0.3s;
+    }
+    input:focus { outline: none; border-color: #dc2626; background: rgba(255, 255, 255, 0.08); }
+    input[type="file"] { padding: 0.5rem; }
+    small { color: #6b7280; font-size: 0.75rem; }
+    .btn {
+      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+      color: #fff; border: none; border-radius: 10px; padding: 0.75rem 1.5rem;
+      font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: 'Poppins', sans-serif;
+      margin-top: 0.5rem;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(220, 38, 38, 0.4); }
+    .hint { color: #6b7280; font-size: 0.85rem; margin-top: 0.5rem; }
+    @media (max-width: 991px) {
+      .sidebar { width: 0; opacity: 0; }
+      .main-content { margin-left: 0; }
+      .form-row { grid-template-columns: 1fr; }
+      .avatar-block { flex-direction: column; text-align: center; }
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -142,14 +241,8 @@ if (!$avatarUrl) { $avatarUrl = 'https://via.placeholder.com/120x120?text=+'; }
       <nav>
         <ul class="nav-menu">
           <li class="nav-item"><a href="index.php" class="nav-link"><ion-icon name="grid"></ion-icon><span>Dashboard</span></a></li>
-          <li class="nav-item">
-            <?php if ($canBook): ?>
-              <a href="courses.php" class="nav-link"><ion-icon name="calendar"></ion-icon><span>My Classes</span></a>
-            <?php else: ?>
-              <a href="subscribe.php" class="nav-link locked" title="Upgrade to PLUS/PRO to unlock"><ion-icon name="lock-closed"></ion-icon><span>My Classes (Locked)</span></a>
-            <?php endif; ?>
-          </li>
-          <li class="nav-item"><a href="subscribe.php" class="nav-link"><ion-icon name="card"></ion-icon><span>Subscription</span></a></li>
+          <li class="nav-item"><a href="courses.php" class="nav-link"><ion-icon name="calendar"></ion-icon><span>My Classes</span></a></li>
+          <li class="nav-item"><a href="members.php" class="nav-link"><ion-icon name="people"></ion-icon><span>My Members</span></a></li>
           <li class="nav-item"><a href="profile.php" class="nav-link active"><ion-icon name="person-circle"></ion-icon><span>Profile</span></a></li>
         </ul>
         <a href="/MyGym/backend/logout.php" class="logout-btn"><ion-icon name="log-out"></ion-icon><span>Logout</span></a>

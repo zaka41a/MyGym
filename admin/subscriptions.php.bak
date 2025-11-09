@@ -1,0 +1,130 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/../backend/auth.php';
+requireRole('ADMIN');
+require_once __DIR__ . '/../backend/db.php';
+require_once __DIR__ . '/../backend/subscriptions.php';
+
+date_default_timezone_set('Europe/Paris');
+
+// Marquer automatiquement les abonnements expirés
+try {
+  $expiredCount = expire_old_subscriptions($pdo);
+} catch (Throwable $e) {
+  $expiredCount = 0;
+}
+
+// CSRF
+if (empty($_SESSION['csrf'])) {
+  $_SESSION['csrf'] = bin2hex(random_bytes(32));
+}
+$CSRF = $_SESSION['csrf'];
+
+$ok  = $_GET['ok']  ?? null;
+$err = $_GET['err'] ?? null;
+
+// POST actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  try {
+    if (!hash_equals($_SESSION['csrf'] ?? '', $_POST['csrf'] ?? '')) {
+      throw new RuntimeException('Invalid CSRF token.');
+    }
+    $id  = (int)($_POST['id'] ?? 0);
+    $act = (string)($_POST['action'] ?? '');
+    if ($id <= 0) throw new RuntimeException('Invalid ID.');
+
+    if ($act === 'approve') {
+      $stmt = $pdo->prepare("
+        UPDATE subscriptions s
+        JOIN plans p ON p.id = s.plan_id
+           SET s.status='ACTIVE',
+               s.start_date = CURRENT_DATE(),
+               s.end_date   = DATE_ADD(CURRENT_DATE(), INTERVAL 1 MONTH),
+               s.amount_paid_cents = p.price_cents,
+               s.paid_at = NOW(),
+               s.approved_by = :admin
+         WHERE s.id = :id AND s.status='PENDING'
+      ");
+      $stmt->execute([':admin'=>(int)($_SESSION['user']['id'] ?? 0), ':id'=>$id]);
+      if ($stmt->rowCount()===0) throw new RuntimeException('Unable to approve (already processed?).');
+
+      header('Location: '.$_SERVER['PHP_SELF'].'?ok='.urlencode('Subscription approved.')); exit;
+    }
+
+    if ($act === 'reject') {
+      $stmt = $pdo->prepare("
+        UPDATE subscriptions
+           SET status='REJECTED', approved_by=:admin
+         WHERE id=:id AND status='PENDING'
+      ");
+      $stmt->execute([':admin'=>(int)($_SESSION['user']['id'] ?? 0), ':id'=>$id]);
+      if ($stmt->rowCount()===0) throw new RuntimeException('Unable to reject (already processed?).');
+
+      header('Location: '.$_SERVER['PHP_SELF'].'?ok='.urlencode('Request rejected.')); exit;
+    }
+
+    if ($act === 'cancel_active_admin') {
+      $stmt = $pdo->prepare("
+        UPDATE subscriptions
+           SET status='CANCELLED',
+               end_date = GREATEST(COALESCE(start_date, CURRENT_DATE()), CURRENT_DATE())
+         WHERE id=:id AND status='ACTIVE'
+      ");
+      $stmt->execute([':id'=>$id]);
+      if ($stmt->rowCount()===0) throw new RuntimeException('Cancellation not possible (not active or already cancelled).');
+
+      header('Location: '.$_SERVER['PHP_SELF'].'?ok='.urlencode('Subscription cancelled (no refund).')); exit;
+    }
+
+    throw new RuntimeException('Unknown action.');
+  } catch (Throwable $e) {
+    header('Location: '.$_SERVER['PHP_SELF'].'?err='.urlencode($e->getMessage())); exit;
+  }
+}
+
+// Load data
+$pending = $pdo->query("
+  SELECT s.id, s.user_id, s.created_at,
+         p.name AS plan_name, p.price_cents,
+         u.fullname, u.email
+    FROM subscriptions s
+    JOIN users u ON u.id = s.user_id
+    JOIN plans p ON p.id = s.plan_id
+   WHERE s.status='PENDING'
+ORDER BY s.created_at ASC
+")->fetchAll(PDO::FETCH_ASSOC);
+
+$history = $pdo->query("
+  SELECT s.id, s.user_id, s.status, s.start_date, s.end_date, s.created_at,
+         s.paid_at,
+         COALESCE(s.amount_paid_cents, p.price_cents) AS amount_cents,
+         p.name AS plan_name,
+         u.fullname, u.email
+    FROM subscriptions s
+    JOIN users u ON u.id = s.user_id
+    JOIN plans p ON p.id = s.plan_id
+   WHERE s.status <> 'PENDING'
+ORDER BY s.id DESC
+   LIMIT 50
+")->fetchAll(PDO::FETCH_ASSOC);
+
+$firstDay = (new DateTime('first day of this month'))->format('Y-m-d 00:00:00');
+$lastDay  = (new DateTime('last day of this month'))->format('Y-m-d 23:59:59');
+$revMonth = (int)$pdo->query("
+  SELECT COALESCE(SUM(s.amount_paid_cents),0)
+    FROM subscriptions s
+   WHERE s.paid_at BETWEEN '{$firstDay}' AND '{$lastDay}'
+     AND s.status IN ('ACTIVE','EXPIRED','CANCELLED')
+")->fetchColumn();
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MyGym — Subscriptions</title>
+  <?php include __DIR__ . '/../shared/head-meta.php'; ?>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <?php include __DIR__ . '/../shared/admin-styles.php'; ?>

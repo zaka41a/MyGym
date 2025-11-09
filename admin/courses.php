@@ -79,6 +79,26 @@ try {
   $sqlError = $e->getMessage();
   if ($DEBUG) error_log("ADMIN/courses.php SQL ERROR: ".$sqlError);
 }
+
+// Calculate stats for the period
+$totalClasses = count($sessions);
+$totalBookings = 0;
+$totalCapacity = 0;
+$activeClasses = 0;
+$now = new DateTime();
+
+foreach ($sessions as $s) {
+  $totalBookings += (int)($s['booked'] ?? 0);
+  $totalCapacity += (int)($s['capacity'] ?? 0);
+
+  // Count active classes (future sessions)
+  if (!empty($s['start_at'])) {
+    $sessionStart = new DateTime($s['start_at']);
+    if ($sessionStart >= $now) {
+      $activeClasses++;
+    }
+  }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -89,211 +109,159 @@ try {
   <?php include __DIR__ . '/../shared/head-meta.php'; ?>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <?php include __DIR__ . '/../shared/admin-styles.php'; ?>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    /* Additional styles for activity badges */
+    .activity-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.375rem 0.875rem;
+      border-radius: 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border: 1px solid;
     }
 
-    body {
-      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #0a0a0a;
-      color: #f5f7fb;
-      min-height: 100vh;
-      background: radial-gradient(55% 80% at 50% 0%, rgba(220, 38, 38, 0.22), transparent 65%),
-                  radial-gradient(60% 90% at 75% 15%, rgba(127, 29, 29, 0.18), transparent 70%),
-                  linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 1) 100%);
+    .activity-badge-yoga {
+      background: rgba(139, 92, 246, 0.2);
+      color: #a78bfa;
+      border-color: rgba(139, 92, 246, 0.3);
     }
 
-    .container {
+    .activity-badge-crossfit {
+      background: rgba(220, 38, 38, 0.2);
+      color: #dc2626;
+      border-color: rgba(220, 38, 38, 0.3);
+    }
+
+    .activity-badge-pilates {
+      background: rgba(236, 72, 153, 0.2);
+      color: #ec4899;
+      border-color: rgba(236, 72, 153, 0.3);
+    }
+
+    .activity-badge-spin {
+      background: rgba(234, 179, 8, 0.2);
+      color: #eab308;
+      border-color: rgba(234, 179, 8, 0.3);
+    }
+
+    .activity-badge-boxing {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .activity-badge-default {
+      background: rgba(59, 130, 246, 0.2);
+      color: #3b82f6;
+      border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    /* Schedule display */
+    .schedule-info {
       display: flex;
-      min-height: 100vh;
+      flex-direction: column;
+      gap: 0.25rem;
     }
 
-    /* Sidebar */
-    .sidebar {
-      width: 280px;
-      background: rgba(17, 17, 17, 0.95);
-      border-right: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 2rem 1.5rem;
-      position: fixed;
-      height: 100vh;
-      overflow-y: auto;
+    .schedule-date {
+      font-weight: 600;
+      color: #fff;
     }
 
-    .logo {
+    .schedule-time {
+      font-size: 0.875rem;
+      color: #9ca3af;
       display: flex;
       align-items: center;
-      gap: 1rem;
-      margin-bottom: 3rem;
+      gap: 0.375rem;
     }
 
-    .logo-icon {
-      width: 48px;
-      height: 48px;
-      background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
-      border-radius: 12px;
+    .schedule-time ion-icon {
+      font-size: 1rem;
+      color: #dc2626;
+    }
+
+    /* Coach display */
+    .coach-info {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .coach-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.3) 0%, rgba(239, 68, 68, 0.3) 100%);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.5rem;
-      box-shadow: 0 10px 30px rgba(220,38,38,0.4);
-    }
-
-    .logo-text h1 {
-      font-size: 1.5rem;
-      font-weight: 800;
-      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .logo-text p {
-      font-size: 0.75rem;
-      color: #9ca3af;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-    }
-
-    .nav-menu {
-      list-style: none;
-      margin: 2rem 0;
-    }
-
-    .nav-item {
-      margin-bottom: 0.5rem;
-    }
-
-    .nav-link {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem;
-      color: #9ca3af;
-      text-decoration: none;
-      border-radius: 12px;
-      transition: all 0.3s;
-      font-weight: 500;
-    }
-
-    .nav-link:hover {
-      background: rgba(255, 255, 255, 0.05);
-      color: #fff;
-    }
-
-    .nav-link.active {
-      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
-      color: #fff;
-      box-shadow: 0 4px 20px rgba(220,38,38,0.3);
-    }
-
-    .nav-link ion-icon {
-      font-size: 1.25rem;
-    }
-
-    .logout-btn {
-      display: flex;
-      align-items: center;
-      gap: 1rem;
-      padding: 1rem;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px;
-      color: #9ca3af;
-      text-decoration: none;
-      transition: all 0.3s;
-      font-weight: 500;
-      margin-top: 2rem;
-    }
-
-    .logout-btn:hover {
-      background: rgba(220, 38, 38, 0.2);
-      color: #fff;
-      border-color: #dc2626;
-    }
-
-    /* Main Content */
-    .main-content {
-      margin-left: 280px;
-      flex: 1;
-      padding: 2rem;
-    }
-
-    .header {
-      margin-bottom: 2rem;
-    }
-
-    .header h1 {
-      font-size: 2rem;
       font-weight: 700;
-      margin-bottom: 0.5rem;
+      font-size: 0.875rem;
+      color: #dc2626;
+      border: 2px solid rgba(220, 38, 38, 0.2);
     }
 
-    /* Section */
-    .section {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px;
-      padding: 2rem;
-      margin-bottom: 2rem;
+    .coach-name {
+      font-weight: 500;
     }
 
-    .section-title {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 1.5rem;
+    /* Capacity display */
+    .capacity-display {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
     }
 
-    /* Alert */
-    .alert-error {
-      padding: 1rem;
-      border-radius: 12px;
-      margin-bottom: 1.5rem;
-      background: rgba(239, 68, 68, 0.2);
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      color: #ef4444;
-    }
-
-    /* Table */
-    table {
+    .capacity-progress {
       width: 100%;
-      border-collapse: collapse;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      overflow: hidden;
     }
 
-    thead td {
+    .capacity-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #10b981, #059669);
+      border-radius: 999px;
+      transition: width 0.3s ease;
+    }
+
+    .capacity-progress-fill.warning {
+      background: linear-gradient(90deg, #f59e0b, #d97706);
+    }
+
+    .capacity-progress-fill.full {
+      background: linear-gradient(90deg, #dc2626, #991b1b);
+    }
+
+    .capacity-text {
       font-weight: 600;
-      color: #9ca3af;
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding-bottom: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-size: 0.875rem;
     }
 
-    tbody tr {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      transition: all 0.2s;
+    /* Alternating row colors */
+    tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
     }
 
     tbody tr:hover {
-      background: rgba(220, 38, 38, 0.05);
+      background: rgba(220, 38, 38, 0.08);
+      transform: scale(1.005);
     }
 
-    td {
-      padding: 1rem 0.75rem;
-      vertical-align: middle;
-    }
-
-    @media (max-width: 991px) {
-      .sidebar {
-        width: 0;
-        opacity: 0;
-      }
-      .main-content {
-        margin-left: 0;
-      }
+    /* No data state */
+    .no-data {
+      text-align: center;
+      padding: 3rem;
+      color: #6b7280;
     }
   </style>
 </head>
@@ -368,32 +336,98 @@ try {
         <p style="color: #9ca3af;">View all scheduled sessions and attendance.</p>
       </div>
 
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">Total Classes</div>
+              <div class="stat-value"><?= $totalClasses ?></div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="calendar"></ion-icon>
+            </div>
+          </div>
+          <div class="stat-trend">
+            <ion-icon name="time"></ion-icon>
+            <span>In selected period</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="width: 85%;"></div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">Active Classes</div>
+              <div class="stat-value"><?= $activeClasses ?></div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="barbell"></ion-icon>
+            </div>
+          </div>
+          <div class="stat-trend positive">
+            <ion-icon name="trending-up"></ion-icon>
+            <span>Upcoming sessions</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="width: <?= $totalClasses > 0 ? min(100, ($activeClasses / $totalClasses) * 100) : 0 ?>%;"></div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">Total Bookings</div>
+              <div class="stat-value"><?= $totalBookings ?></div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="people"></ion-icon>
+            </div>
+          </div>
+          <div class="stat-trend positive">
+            <ion-icon name="checkmark-circle"></ion-icon>
+            <span><?= $totalCapacity > 0 ? round(($totalBookings / $totalCapacity) * 100) : 0 ?>% capacity filled</span>
+          </div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" style="width: <?= $totalCapacity > 0 ? min(100, ($totalBookings / $totalCapacity) * 100) : 0 ?>%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sessions Section -->
       <div class="section">
-        <h2 class="section-title">
-          All Sessions (<?= htmlspecialchars($start->format('d/m/Y')) ?> → <?= htmlspecialchars($end->format('d/m/Y')) ?>)
-        </h2>
+        <div class="section-header">
+          <h2 class="section-title">
+            All Sessions (<?= htmlspecialchars($start->format('d/m/Y')) ?> → <?= htmlspecialchars($end->format('d/m/Y')) ?>)
+          </h2>
+        </div>
 
         <?php if ($sqlError): ?>
-          <div class="alert-error">SQL error: <?= htmlspecialchars($sqlError) ?></div>
+          <div class="alert alert-error">SQL error: <?= htmlspecialchars($sqlError) ?></div>
         <?php endif; ?>
 
         <div style="overflow-x:auto">
           <table>
             <thead>
               <tr>
-                <td style="width:140px">Date</td>
-                <td style="width:120px">Time</td>
+                <td>Schedule</td>
                 <td>Activity</td>
-                <td style="width:160px">Coach</td>
-                <td style="width:90px">Booked</td>
-                <td style="width:90px">Capacity</td>
+                <td>Coach</td>
+                <td style="text-align: center;">Attendance</td>
               </tr>
             </thead>
             <tbody>
             <?php if (empty($sessions)): ?>
-              <tr><td colspan="6" style="text-align:center;color:#9ca3af">No sessions in this period.</td></tr>
+              <tr>
+                <td colspan="4" class="no-data">
+                  <ion-icon name="calendar-outline" style="font-size: 3rem; color: #4b5563; margin-bottom: 0.5rem;"></ion-icon>
+                  <div>No sessions in this period.</div>
+                </td>
+              </tr>
             <?php else: foreach ($sessions as $s):
-                $date  = !empty($s['start_at']) ? (new DateTime($s['start_at']))->format('d/m/Y') : '—';
+                $date  = !empty($s['start_at']) ? (new DateTime($s['start_at']))->format('M d, Y') : '—';
                 $heure = '—';
                 if (!empty($s['start_at'])) {
                   $sd = new DateTime($s['start_at']); $hi = $sd->format('H:i');
@@ -403,16 +437,75 @@ try {
                 $cap   = (int)($s['capacity']      ?? 0);
                 $book  = (int)($s['booked']        ?? 0);
                 $act   = (string)($s['activity_name'] ?? '');
-                $actC  = (string)($s['activity_code'] ?? '');
-                $coach = (string)($s['coach_name']    ?? '—');
+                $actC  = strtoupper((string)($s['activity_code'] ?? ''));
+                $coach = (string)($s['coach_name']    ?? '');
+
+                // Determine badge class based on activity code
+                $badgeClass = 'activity-badge-default';
+                if (stripos($actC, 'YOGA') !== false) $badgeClass = 'activity-badge-yoga';
+                elseif (stripos($actC, 'CROSSFIT') !== false || stripos($actC, 'CF') !== false) $badgeClass = 'activity-badge-crossfit';
+                elseif (stripos($actC, 'PILATES') !== false) $badgeClass = 'activity-badge-pilates';
+                elseif (stripos($actC, 'SPIN') !== false || stripos($actC, 'CYCLING') !== false) $badgeClass = 'activity-badge-spin';
+                elseif (stripos($actC, 'BOX') !== false) $badgeClass = 'activity-badge-boxing';
+
+                // Calculate capacity percentage
+                $percentage = $cap > 0 ? ($book / $cap) * 100 : 0;
+                $progressClass = '';
+                if ($percentage >= 100) $progressClass = 'full';
+                elseif ($percentage >= 80) $progressClass = 'warning';
+
+                // Get coach initials for avatar
+                $coachInitials = '?';
+                if ($coach) {
+                  $parts = explode(' ', trim($coach));
+                  if (count($parts) >= 2) {
+                    $coachInitials = strtoupper(substr($parts[0], 0, 1) . substr($parts[1], 0, 1));
+                  } else {
+                    $coachInitials = strtoupper(substr($coach, 0, 2));
+                  }
+                }
             ?>
               <tr>
-                <td><?= htmlspecialchars($date) ?></td>
-                <td><?= htmlspecialchars($heure) ?></td>
-                <td><?= htmlspecialchars($act) ?> <span style="color:#9ca3af">(<?= htmlspecialchars($actC) ?>)</span></td>
-                <td><?= htmlspecialchars($coach ?: '—') ?></td>
-                <td><?= $book ?></td>
-                <td><?= $cap ?></td>
+                <td>
+                  <div class="schedule-info">
+                    <div class="schedule-date"><?= htmlspecialchars($date) ?></div>
+                    <div class="schedule-time">
+                      <ion-icon name="time-outline"></ion-icon>
+                      <?= htmlspecialchars($heure) ?>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <strong><?= htmlspecialchars($act) ?></strong>
+                    <span class="activity-badge <?= $badgeClass ?>">
+                      <ion-icon name="fitness"></ion-icon>
+                      <?= htmlspecialchars($actC) ?>
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <?php if ($coach): ?>
+                  <div class="coach-info">
+                    <div class="coach-avatar"><?= $coachInitials ?></div>
+                    <span class="coach-name"><?= htmlspecialchars($coach) ?></span>
+                  </div>
+                  <?php else: ?>
+                  <span style="color: #6b7280;">Not assigned</span>
+                  <?php endif; ?>
+                </td>
+                <td>
+                  <div class="capacity-display">
+                    <div class="capacity-text">
+                      <span style="color: #10b981;"><?= $book ?></span>
+                      <span style="color: #6b7280;"> / </span>
+                      <span><?= $cap ?></span>
+                    </div>
+                    <div class="capacity-progress">
+                      <div class="capacity-progress-fill <?= $progressClass ?>" style="width: <?= min(100, $percentage) ?>%;"></div>
+                    </div>
+                  </div>
+                </td>
               </tr>
             <?php endforeach; endif; ?>
             </tbody>

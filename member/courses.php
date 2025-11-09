@@ -96,102 +96,7 @@ $sessions = $st->fetchAll(PDO::FETCH_ASSOC);
   <?php include __DIR__ . '/../shared/head-meta.php'; ?>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #0a0a0a;
-      color: #f5f7fb;
-      min-height: 100vh;
-      background: radial-gradient(55% 80% at 50% 0%, rgba(220, 38, 38, 0.22), transparent 65%),
-                  radial-gradient(60% 90% at 75% 15%, rgba(127, 29, 29, 0.18), transparent 70%),
-                  linear-gradient(180deg, rgba(10, 10, 10, 0.98) 0%, rgba(10, 10, 10, 1) 100%);
-    }
-    .container { display: flex; min-height: 100vh; }
-    .sidebar {
-      width: 280px; background: rgba(17, 17, 17, 0.95);
-      border-right: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 2rem 1.5rem; position: fixed; height: 100vh; overflow-y: auto;
-    }
-    .logo { display: flex; align-items: center; gap: 1rem; margin-bottom: 3rem; }
-    .logo-icon {
-      width: 48px; height: 48px;
-      background: linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%);
-      border-radius: 12px; display: flex; align-items: center; justify-content: center;
-      font-size: 1.5rem; box-shadow: 0 10px 30px rgba(220,38,38,0.4);
-    }
-    .logo-text h1 {
-      font-size: 1.5rem; font-weight: 800;
-      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    }
-    .logo-text p { font-size: 0.75rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.1em; }
-    .nav-menu { list-style: none; margin: 2rem 0; }
-    .nav-item { margin-bottom: 0.5rem; }
-    .nav-link {
-      display: flex; align-items: center; gap: 1rem; padding: 1rem; color: #9ca3af;
-      text-decoration: none; border-radius: 12px; transition: all 0.3s; font-weight: 500;
-    }
-    .nav-link:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
-    .nav-link.active {
-      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(239, 68, 68, 0.2) 100%);
-      color: #fff; box-shadow: 0 4px 20px rgba(220,38,38,0.3);
-    }
-    .nav-link.locked { opacity: 0.6; }
-    .nav-link ion-icon { font-size: 1.25rem; }
-    .logout-btn {
-      display: flex; align-items: center; gap: 1rem; padding: 1rem;
-      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 12px; color: #9ca3af; text-decoration: none; transition: all 0.3s;
-      font-weight: 500; margin-top: 2rem;
-    }
-    .logout-btn:hover { background: rgba(220, 38, 38, 0.2); color: #fff; border-color: #dc2626; }
-    .main-content { margin-left: 280px; flex: 1; padding: 2rem; }
-    .header { margin-bottom: 2rem; }
-    .header h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
-    .section {
-      background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 16px; padding: 2rem; margin-bottom: 2rem;
-    }
-    .alert { padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; font-weight: 500; }
-    .alert.ok { background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80; }
-    .alert.err { background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; }
-    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
-    thead td {
-      font-weight: 600; color: #9ca3af; font-size: 0.85rem; text-transform: uppercase;
-      letter-spacing: 0.05em; padding-bottom: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    tbody tr { border-bottom: 1px solid rgba(255, 255, 255, 0.05); transition: all 0.2s; }
-    tbody tr:hover { background: rgba(220, 38, 38, 0.05); }
-    td { padding: 1rem 0.75rem; vertical-align: middle; }
-    .badge {
-      display: inline-flex; align-items: center; gap: 0.4rem;
-      background: rgba(255, 255, 255, 0.1); padding: 0.25rem 0.75rem;
-      border-radius: 20px; font-size: 0.85rem; font-weight: 600;
-    }
-    .badge.success { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
-    .badge.warning { background: rgba(234, 179, 8, 0.2); color: #facc15; }
-    .btn {
-      display: inline-flex; align-items: center; gap: 0.5rem;
-      background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-      color: #fff; border: none; border-radius: 10px; padding: 0.6rem 1.2rem;
-      font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: 'Poppins', sans-serif;
-      font-size: 0.9rem;
-    }
-    .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(220, 38, 38, 0.4); }
-    .btn-dark {
-      background: rgba(255, 255, 255, 0.1);
-    }
-    .btn-dark:hover { background: rgba(255, 255, 255, 0.15); transform: translateY(-2px); }
-    .locked-msg {
-      background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3);
-      padding: 1rem; border-radius: 12px; color: #facc15; display: flex; align-items: center; gap: 0.75rem;
-    }
-    @media (max-width: 991px) {
-      .sidebar { width: 0; opacity: 0; }
-      .main-content { margin-left: 0; }
-    }
-  </style>
+  <?php include __DIR__ . '/../shared/member-styles.php'; ?>
 </head>
 <body>
   <div class="container">
@@ -242,8 +147,8 @@ $sessions = $st->fetchAll(PDO::FETCH_ASSOC);
         <p style="color: #9ca3af;">Browse and reserve upcoming fitness classes</p>
       </div>
 
-      <?php if ($ok): ?><div class="alert ok"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
-      <?php if ($err): ?><div class="alert err"><?= htmlspecialchars($err) ?></div><?php endif; ?>
+      <?php if ($ok): ?><div class="alert alert-success"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
+      <?php if ($err): ?><div class="alert alert-error"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 
       <?php if (!$canBook): ?>
         <div class="locked-msg">
@@ -255,61 +160,207 @@ $sessions = $st->fetchAll(PDO::FETCH_ASSOC);
         </div>
       <?php endif; ?>
 
+      <?php
+        // Calculate stats
+        $totalAvailable = count($sessions);
+        $myBookingsCount = 0;
+        $totalCapacityRemaining = 0;
+        foreach ($sessions as $s) {
+          if ((int)$s['my_reserved'] === 1) $myBookingsCount++;
+          $totalCapacityRemaining += max(0, (int)$s['capacity'] - (int)$s['reserved']);
+        }
+      ?>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">Available Classes</div>
+              <div class="stat-value"><?= $totalAvailable ?></div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="calendar"></ion-icon>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">My Bookings</div>
+              <div class="stat-value"><?= $myBookingsCount ?></div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="checkmark-done-circle"></ion-icon>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-card">
+          <div class="stat-header">
+            <div>
+              <div class="stat-label">Total Spots Left</div>
+              <div class="stat-value"><?= $totalCapacityRemaining ?></div>
+            </div>
+            <div class="stat-icon">
+              <ion-icon name="people"></ion-icon>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search and Filter Bar -->
+      <div class="filter-bar">
+        <div class="search-box">
+          <ion-icon name="search"></ion-icon>
+          <input type="text" id="searchInput" placeholder="Search by class name or coach..." />
+        </div>
+        <div class="filter-buttons">
+          <button class="filter-btn active" data-filter="all">All Classes</button>
+          <button class="filter-btn" data-filter="available">Available</button>
+          <button class="filter-btn" data-filter="booked">My Bookings</button>
+        </div>
+      </div>
+
       <div class="section">
-        <h2 style="font-size:1.25rem;font-weight:600;margin-bottom:1.5rem">Upcoming Sessions</h2>
-        <table>
-          <thead>
-            <tr>
-              <td>Start</td><td>End</td><td>Class</td><td>Coach</td>
-              <td>Capacity</td><td>Booked</td><td>Available</td><td>Action</td>
-            </tr>
-          </thead>
-          <tbody>
-          <?php if (!$sessions): ?>
-            <tr><td colspan="8" style="color:#6b7280;text-align:center;padding:2rem">No upcoming sessions available</td></tr>
-          <?php else: foreach ($sessions as $s):
-            $cap   = (int)$s['capacity'];
-            $res   = (int)$s['reserved'];
-            $left  = max(0, $cap - $res);
-            $mine  = ((int)$s['my_reserved'] === 1);
-          ?>
-            <tr>
-              <td><?= date('d/m H:i', strtotime((string)$s['start_at'])) ?></td>
-              <td><?= date('d/m H:i', strtotime((string)$s['end_at'])) ?></td>
-              <td><strong><?= htmlspecialchars($s['activity']) ?></strong></td>
-              <td><?= htmlspecialchars($s['coach']) ?></td>
-              <td><span class="badge"><ion-icon name="people"></ion-icon><?= $cap ?></span></td>
-              <td><span class="badge success"><ion-icon name="checkmark-done"></ion-icon><?= $res ?></span></td>
-              <td><span class="badge warning"><ion-icon name="time"></ion-icon><?= $left ?></span></td>
-              <td>
-                <?php if (!$canBook): ?>
-                  <span style="color:#6b7280"><ion-icon name="lock-closed"></ion-icon> Locked</span>
-                <?php elseif ($mine): ?>
-                  <form method="post" style="display:inline">
-                    <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
-                    <input type="hidden" name="action" value="cancel">
-                    <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                    <button class="btn btn-dark" type="submit">
-                      <ion-icon name="close-circle"></ion-icon> Cancel
-                    </button>
-                  </form>
-                <?php elseif ($left <= 0): ?>
-                  <span style="color:#6b7280"><ion-icon name="ban"></ion-icon> Full</span>
-                <?php else: ?>
-                  <form method="post" style="display:inline">
-                    <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
-                    <input type="hidden" name="action" value="reserve">
-                    <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
-                    <button class="btn" type="submit">
-                      <ion-icon name="checkmark-circle"></ion-icon> Reserve
-                    </button>
-                  </form>
-                <?php endif; ?>
-              </td>
-            </tr>
-          <?php endforeach; endif; ?>
-          </tbody>
-        </table>
+        <div class="section-header">
+          <h2 class="section-title">Upcoming Sessions</h2>
+          <span class="results-count" id="resultsCount"><?= $totalAvailable ?> classes</span>
+        </div>
+
+        <?php if (!$sessions): ?>
+          <div class="empty-state">
+            <ion-icon name="calendar-outline" style="font-size: 4rem; color: #4b5563; margin-bottom: 1rem;"></ion-icon>
+            <h3 style="color: #9ca3af; font-size: 1.25rem; font-weight: 600;">No upcoming sessions available</h3>
+            <p style="color: #6b7280; font-size: 0.9rem;">Check back later for new class schedules</p>
+          </div>
+        <?php else: ?>
+          <div class="classes-grid">
+            <?php foreach ($sessions as $s):
+              $cap   = (int)$s['capacity'];
+              $res   = (int)$s['reserved'];
+              $left  = max(0, $cap - $res);
+              $mine  = ((int)$s['my_reserved'] === 1);
+              $full  = ($left <= 0);
+              $progress = ($cap > 0) ? round(($res / $cap) * 100) : 0;
+
+              // Activity color coding
+              $activityName = strtoupper($s['activity']);
+              $activityColors = [
+                'YOGA' => ['bg' => 'rgba(168, 85, 247, 0.2)', 'border' => '#a855f7', 'text' => '#c084fc'],
+                'CROSSFIT' => ['bg' => 'rgba(220, 38, 38, 0.2)', 'border' => '#dc2626', 'text' => '#ef4444'],
+                'PILATES' => ['bg' => 'rgba(236, 72, 153, 0.2)', 'border' => '#ec4899', 'text' => '#f472b6'],
+                'ZUMBA' => ['bg' => 'rgba(245, 158, 11, 0.2)', 'border' => '#f59e0b', 'text' => '#fbbf24'],
+                'SPINNING' => ['bg' => 'rgba(14, 165, 233, 0.2)', 'border' => '#0ea5e9', 'text' => '#38bdf8'],
+                'BOXING' => ['bg' => 'rgba(239, 68, 68, 0.2)', 'border' => '#ef4444', 'text' => '#f87171'],
+              ];
+              $colors = $activityColors[$activityName] ?? ['bg' => 'rgba(59, 130, 246, 0.2)', 'border' => '#3b82f6', 'text' => '#60a5fa'];
+            ?>
+              <div class="class-card"
+                   data-activity="<?= htmlspecialchars($activityName) ?>"
+                   data-coach="<?= htmlspecialchars($s['coach']) ?>"
+                   data-status="<?= $mine ? 'booked' : ($full ? 'full' : 'available') ?>">
+
+                <!-- Class Image Placeholder -->
+                <div class="class-image" style="background: linear-gradient(135deg, <?= $colors['bg'] ?>, rgba(0,0,0,0.3));">
+                  <div class="class-overlay">
+                    <span class="activity-badge" style="background: <?= $colors['bg'] ?>; border: 1px solid <?= $colors['border'] ?>; color: <?= $colors['text'] ?>;">
+                      <?= htmlspecialchars($activityName) ?>
+                    </span>
+                    <?php if ($mine): ?>
+                      <span class="booked-indicator">
+                        <ion-icon name="checkmark-circle"></ion-icon> Booked
+                      </span>
+                    <?php elseif ($full): ?>
+                      <span class="full-indicator">
+                        <ion-icon name="close-circle"></ion-icon> Full
+                      </span>
+                    <?php endif; ?>
+                  </div>
+                </div>
+
+                <!-- Class Content -->
+                <div class="class-content">
+                  <div class="class-header">
+                    <h3 class="class-title"><?= htmlspecialchars($s['activity']) ?></h3>
+                    <div class="class-time">
+                      <ion-icon name="time-outline"></ion-icon>
+                      <span><?= date('D, M j', strtotime((string)$s['start_at'])) ?></span>
+                    </div>
+                  </div>
+
+                  <div class="class-schedule">
+                    <div class="schedule-item">
+                      <ion-icon name="play-circle"></ion-icon>
+                      <span><?= date('h:i A', strtotime((string)$s['start_at'])) ?></span>
+                    </div>
+                    <span style="color: #4b5563;">—</span>
+                    <div class="schedule-item">
+                      <ion-icon name="stop-circle"></ion-icon>
+                      <span><?= date('h:i A', strtotime((string)$s['end_at'])) ?></span>
+                    </div>
+                  </div>
+
+                  <div class="class-coach">
+                    <ion-icon name="person-circle"></ion-icon>
+                    <span><?= htmlspecialchars($s['coach']) ?></span>
+                  </div>
+
+                  <!-- Capacity Progress Bar -->
+                  <div class="capacity-section">
+                    <div class="capacity-header">
+                      <span class="capacity-label">Capacity</span>
+                      <span class="capacity-numbers"><?= $res ?> / <?= $cap ?></span>
+                    </div>
+                    <div class="progress-bar">
+                      <div class="progress-fill" style="width: <?= $progress ?>%; background: <?= $progress >= 90 ? '#ef4444' : ($progress >= 70 ? '#f59e0b' : '#10b981') ?>;"></div>
+                    </div>
+                    <div class="spots-left">
+                      <ion-icon name="<?= $left > 0 ? 'checkmark-circle' : 'close-circle' ?>"></ion-icon>
+                      <span><?= $left ?> spot<?= $left !== 1 ? 's' : '' ?> remaining</span>
+                    </div>
+                  </div>
+
+                  <!-- Action Button -->
+                  <div class="class-actions">
+                    <?php if (!$canBook): ?>
+                      <button class="class-btn locked" disabled>
+                        <ion-icon name="lock-closed"></ion-icon>
+                        <span>Locked - Upgrade Required</span>
+                      </button>
+                    <?php elseif ($mine): ?>
+                      <form method="post">
+                        <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
+                        <input type="hidden" name="action" value="cancel">
+                        <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                        <button class="class-btn cancel" type="submit">
+                          <ion-icon name="close-circle"></ion-icon>
+                          <span>Cancel Booking</span>
+                        </button>
+                      </form>
+                    <?php elseif ($full): ?>
+                      <button class="class-btn full" disabled>
+                        <ion-icon name="ban"></ion-icon>
+                        <span>Class Full</span>
+                      </button>
+                    <?php else: ?>
+                      <form method="post">
+                        <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
+                        <input type="hidden" name="action" value="reserve">
+                        <input type="hidden" name="session_id" value="<?= (int)$s['id'] ?>">
+                        <button class="class-btn book" type="submit">
+                          <ion-icon name="checkmark-circle"></ion-icon>
+                          <span>Book Now</span>
+                        </button>
+                      </form>
+                    <?php endif; ?>
+                  </div>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endif; ?>
       </div>
     </main>
   </div>
