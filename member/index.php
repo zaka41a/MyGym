@@ -99,6 +99,35 @@ try {
 } catch (Throwable $e) {
   $bookedCount = 0;
 }
+
+$nextBooking        = $myNext[0] ?? null;
+$nextBookingLabel   = $nextBooking ? date('M d • H:i', strtotime((string)$nextBooking['start_at'])) : 'No class booked yet';
+$nextBookingCoach   = $nextBooking['coach'] ?? null;
+$subscriptionStatus = 'No subscription';
+$subscriptionBadge  = 'badge badge-warning';
+$subscriptionCopy   = 'Choose a plan to unlock every class.';
+
+if ($active) {
+  $subscriptionStatus = 'Active';
+  $subscriptionBadge  = 'badge badge-success';
+  $subscriptionCopy   = sprintf('%s • Ends on %s',
+    (string)($active['plan_name'] ?? ''), $active['end_date'] ?: '—'
+  );
+} elseif ($pending) {
+  $subscriptionStatus = 'Pending';
+  $subscriptionBadge  = 'badge badge-info';
+  $subscriptionCopy   = sprintf('Waiting for validation • %s plan', (string)($pending['plan_name'] ?? ''));
+}
+
+$planProgress = $pctLeft ?? null;
+$activitySpark = [];
+$dayLabels = ['Mon','Tue','Wed','Thu','Fri','Sat'];
+$base = min(82, max(24, $bookedCount * 6 + ($canBook ? 12 : -6)));
+foreach ($dayLabels as $idx => $label) {
+  $offset = ($idx - 2) * 5;
+  $value = max(18, min(92, $base + $offset));
+  $activitySpark[] = ['label'=>$label, 'value'=>$value];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -118,23 +147,23 @@ try {
       <div class="logo">
         <svg width="180" height="50" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g transform="translate(5, 15)">
-            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradientMember1)"/>
             <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
-            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradient1)"/>
+            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradientMember1)"/>
             <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
-            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradientMember1)"/>
           </g>
-          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradient)" letter-spacing="2">MyGym</text>
-          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#9ca3af" letter-spacing="3">PERFORMANCE CLUB</text>
+          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradientMember)" letter-spacing="2">MyGym</text>
+          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="3">MEMBER SPACE</text>
           <defs>
-            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#dc2626"/>
-              <stop offset="100%" stop-color="#991b1b"/>
-            </linearGradient>
-            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#dc2626"/>
-              <stop offset="50%" stop-color="#ef4444"/>
+            <linearGradient id="gradientMember1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ef4444"/>
               <stop offset="100%" stop-color="#dc2626"/>
+            </linearGradient>
+            <linearGradient id="textGradientMember" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ef4444"/>
+              <stop offset="50%" stop-color="#f87171"/>
+              <stop offset="100%" stop-color="#ef4444"/>
             </linearGradient>
           </defs>
         </svg>
@@ -155,7 +184,7 @@ try {
                 <span>My Classes</span>
               </a>
             <?php else: ?>
-              <a href="subscribe.php" class="nav-link" style="opacity:0.6">
+              <a href="subscribe.php" class="nav-link locked" title="Upgrade to unlock">
                 <ion-icon name="lock-closed"></ion-icon>
                 <span>My Classes (Locked)</span>
               </a>
@@ -185,141 +214,224 @@ try {
     <!-- Main Content -->
     <main class="main-content">
       <div class="header">
-        <h1>Welcome back, <?= htmlspecialchars($userName) ?>!</h1>
-        <p>Track your fitness journey and upcoming classes.</p>
+        <div>
+          <h1>Welcome back, <?= htmlspecialchars($userName) ?>!</h1>
+          <p>Track your performance, next classes, and membership health.</p>
+        </div>
+        <div class="header-date">
+          <ion-icon name="calendar-outline"></ion-icon>
+          <span><?= date('l, F j') ?></span>
+        </div>
       </div>
 
-      <!-- Stats Grid -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-header">
-            <div class="stat-icon">
-              <ion-icon name="calendar"></ion-icon>
-            </div>
+      <!-- Member Stats Hero -->
+      <div class="member-stats-hero">
+        <div class="member-stat-card">
+          <div class="member-stat-icon" style="--stat-color: #ef4444;">
+            <ion-icon name="calendar"></ion-icon>
           </div>
-          <div class="stat-value"><?= (int)$bookedCount ?></div>
-          <div class="stat-label">Booked Classes</div>
+          <div class="member-stat-content">
+            <div class="member-stat-value"><?= number_format($bookedCount) ?></div>
+            <div class="member-stat-label">Booked Classes</div>
+            <div class="member-stat-subtitle"><?= $bookedCount > 0 ? 'Great consistency!' : 'Start your journey' ?></div>
+          </div>
         </div>
 
-        <div class="stat-card">
-          <div class="stat-header">
-            <div class="stat-icon">
-              <ion-icon name="time"></ion-icon>
+        <div class="member-stat-divider"></div>
+
+        <div class="member-stat-card">
+          <div class="member-stat-icon" style="--stat-color: #dc2626;">
+            <ion-icon name="time"></ion-icon>
+          </div>
+          <div class="member-stat-content">
+            <div class="member-stat-value small"><?= htmlspecialchars($nextBookingLabel) ?></div>
+            <div class="member-stat-label">Next Session</div>
+            <div class="member-stat-subtitle"><?= $nextBookingCoach ? htmlspecialchars($nextBookingCoach) : 'No booking yet' ?></div>
+          </div>
+        </div>
+
+        <div class="member-stat-divider"></div>
+
+        <div class="member-stat-card">
+          <div class="member-stat-icon" style="--stat-color: #b91c1c;">
+            <ion-icon name="card"></ion-icon>
+          </div>
+          <div class="member-stat-content">
+            <div class="member-stat-value"><?= htmlspecialchars($subscriptionStatus) ?></div>
+            <div class="member-stat-label">Subscription</div>
+            <div class="member-stat-subtitle"><?= $active ? htmlspecialchars((string)($active['plan_name'] ?? '')) : 'Choose a plan' ?></div>
+          </div>
+        </div>
+
+        <div class="member-stat-divider"></div>
+
+        <div class="member-stat-card">
+          <div class="member-stat-icon" style="--stat-color: <?= $canBook ? '#10b981' : '#f87171' ?>;">
+            <ion-icon name="<?= $canBook ? 'checkmark-circle' : 'lock-closed' ?>"></ion-icon>
+          </div>
+          <div class="member-stat-content">
+            <div class="member-stat-value"><?= $canBook ? '<span style="color: #ef4444;">Unlocked</span>' : 'Locked' ?></div>
+            <div class="member-stat-label">Class Access</div>
+            <div class="member-stat-subtitle"><?= $canBook ? 'Ready to book' : 'Upgrade needed' ?></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-row">
+        <div class="quick-actions-panel">
+          <div class="section-header">
+            <h2 class="section-title">Quick Actions</h2>
+          </div>
+          <div class="quick-actions-grid">
+            <a href="<?= $canBook ? 'courses.php' : 'subscribe.php' ?>" class="quick-action-card">
+              <div class="quick-action-icon">
+                <ion-icon name="barbell-outline"></ion-icon>
+              </div>
+              <div class="quick-action-info">
+                <h3><?= $canBook ? 'Book a Class' : 'Unlock Classes' ?></h3>
+                <p><?= $canBook ? 'Secure your next spot' : 'Upgrade to access the schedule' ?></p>
+              </div>
+              <?php if (!$canBook): ?><span class="quick-action-badge">Lock</span><?php endif; ?>
+            </a>
+
+            <a href="subscribe.php" class="quick-action-card">
+              <div class="quick-action-icon">
+                <ion-icon name="card-outline"></ion-icon>
+              </div>
+              <div class="quick-action-info">
+                <h3>Manage Plan</h3>
+                <p><?= $active ? htmlspecialchars((string)($active['plan_name'] ?? '')) : 'Pick the right formula' ?></p>
+              </div>
+            </a>
+
+            <a href="profile.php" class="quick-action-card">
+              <div class="quick-action-icon">
+                <ion-icon name="person-circle-outline"></ion-icon>
+              </div>
+              <div class="quick-action-info">
+                <h3>Update Profile</h3>
+                <p>Keep your contact info fresh</p>
+              </div>
+            </a>
+
+            <a href="mailto:coach@mygym.local" class="quick-action-card">
+              <div class="quick-action-icon">
+                <ion-icon name="chatbubbles-outline"></ion-icon>
+              </div>
+              <div class="quick-action-info">
+                <h3>Talk to Us</h3>
+                <p>Need help with your goals?</p>
+              </div>
+            </a>
+          </div>
+        </div>
+
+        <div class="performance-chart">
+          <div class="section-header">
+            <h2 class="section-title">Weekly Focus</h2>
+          </div>
+          <div class="chart-container">
+            <div class="chart-bars">
+              <?php foreach ($activitySpark as $point): ?>
+                <div class="chart-bar" style="--height: <?= (float)$point['value'] ?>%;">
+                  <div class="chart-bar-fill"></div>
+                  <span class="chart-label"><?= htmlspecialchars($point['label']) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <div class="chart-stats">
+              <div class="chart-stat">
+                <span class="chart-stat-value"><?= number_format($bookedCount) ?></span>
+                <span class="chart-stat-label">Total bookings</span>
+              </div>
+              <div class="chart-stat">
+                <span class="chart-stat-value"><?= $canBook ? 'Ready' : 'Locked' ?></span>
+                <span class="chart-stat-label">Class access</span>
+              </div>
             </div>
           </div>
-          <?php if ($active && $daysLeft !== null): ?>
-            <div class="stat-value">D-<?= (int)$daysLeft ?></div>
-            <div class="stat-label"><?= htmlspecialchars($active['plan_name']) ?></div>
-          <?php elseif ($pending): ?>
-            <div class="stat-value">—</div>
-            <div class="stat-label">Pending Request</div>
-          <?php else: ?>
-            <div class="stat-value">—</div>
-            <div class="stat-label">No Subscription</div>
+        </div>
+      </div>
+
+      <div class="dashboard-row">
+        <div class="section activity-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <ion-icon name="calendar-outline"></ion-icon>
+              Upcoming Classes
+            </h2>
+            <a href="<?= $canBook ? 'courses.php' : 'subscribe.php' ?>" class="view-all-link">
+              <?= $canBook ? 'View schedule' : 'Unlock classes' ?>
+            </a>
+          </div>
+          <ul class="activity-list">
+            <?php if (empty($myNext)): ?>
+              <li class="activity-item">
+                <div class="activity-info">
+                  <p style="color:#9ca3af">No upcoming bookings.</p>
+                </div>
+              </li>
+            <?php else: foreach ($myNext as $row): ?>
+              <li class="activity-item">
+                <div class="activity-icon">
+                  <ion-icon name="barbell"></ion-icon>
+                </div>
+                <div class="activity-info">
+                  <div class="activity-title"><?= htmlspecialchars((string)$row['activity']) ?></div>
+                  <div class="activity-meta">
+                    <?= date('M d • H:i', strtotime((string)$row['start_at'])) ?> · <?= htmlspecialchars((string)$row['coach']) ?>
+                  </div>
+                </div>
+                <form method="post" action="courses.php" onsubmit="return confirm('Cancel this booking?');">
+                  <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
+                  <input type="hidden" name="action" value="cancel">
+                  <input type="hidden" name="session_id" value="<?= (int)$row['id'] ?>">
+                  <button class="btn btn-ghost" type="submit">Cancel</button>
+                </form>
+              </li>
+            <?php endforeach; endif; ?>
+          </ul>
+        </div>
+
+        <div class="section activity-section">
+          <div class="section-header">
+            <h2 class="section-title">
+              <ion-icon name="card-outline"></ion-icon>
+              Subscription Summary
+            </h2>
+            <span class="<?= htmlspecialchars($subscriptionBadge) ?>"><?= htmlspecialchars($subscriptionStatus) ?></span>
+          </div>
+          <p style="color:#9ca3af;line-height:1.6;">
+            <?= htmlspecialchars($subscriptionCopy) ?>
+          </p>
+
+          <?php if ($planProgress !== null): ?>
+            <div class="stat-bar" style="margin: 1.5rem 0 0.5rem;">
+              <div class="stat-bar-fill" style="width: <?= (int)$planProgress ?>%;"></div>
+            </div>
+            <p style="color:#9ca3af; font-size:0.9rem;">Approximately <?= (int)$daysLeft ?> day(s) remaining</p>
           <?php endif; ?>
-        </div>
 
-        <div class="stat-card">
-          <div class="stat-header">
-            <div class="stat-icon">
-              <ion-icon name="<?= $active ? 'checkmark-circle' : ($pending ? 'hourglass' : 'alert-circle') ?>"></ion-icon>
-            </div>
-          </div>
-          <div class="stat-value"><?= $active ? 'Active' : ($pending ? 'Pending' : 'None') ?></div>
-          <div class="stat-label">Status</div>
-        </div>
-      </div>
-
-      <!-- Two columns -->
-      <div class="cols">
-        <!-- My upcoming classes -->
-        <div class="section">
-          <div class="section-header">
-            <h2 class="section-title">My Upcoming Classes</h2>
-            <?php if ($canBook): ?>
-              <a href="courses.php" class="btn">View Catalog</a>
-            <?php else: ?>
-              <a href="subscribe.php" class="btn">Upgrade Plan</a>
-            <?php endif; ?>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <td>Date</td>
-                <td>Activity</td>
-                <td>Coach</td>
-                <td>Action</td>
-              </tr>
-            </thead>
-            <tbody>
-              <?php if (empty($myNext)): ?>
-                <tr><td colspan="4" style="text-align:center;color:#9ca3af">No upcoming bookings.</td></tr>
-              <?php else: foreach ($myNext as $row): ?>
-                <tr>
-                  <td><?= date('M d, H:i', strtotime((string)$row['start_at'])) ?></td>
-                  <td><?= htmlspecialchars($row['activity']) ?></td>
-                  <td><?= htmlspecialchars($row['coach']) ?></td>
-                  <td>
-                    <form method="post" action="courses.php" style="display:inline">
-                      <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
-                      <input type="hidden" name="action" value="cancel">
-                      <input type="hidden" name="session_id" value="<?= (int)$row['id'] ?>">
-                      <button class="btn" type="submit" style="background:#666;font-size:0.75rem" onclick="return confirm('Cancel this booking?');">Cancel</button>
-                    </form>
-                  </td>
-                </tr>
-              <?php endforeach; endif; ?>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- My subscription -->
-        <div class="section">
-          <div class="section-header">
-            <h2 class="section-title">My Subscription</h2>
-          </div>
-
-          <?php if ($active): ?>
-            <p style="margin:6px 0;color:#9ca3af">
-              <strong style="color:#fff"><?= htmlspecialchars($active['plan_name']) ?></strong><br>
-              Start: <?= htmlspecialchars($active['start_date'] ?: '—') ?><br>
-              End: <?= htmlspecialchars($active['end_date'] ?: '—') ?>
-            </p>
-            <div style="display:flex;align-items:center;gap:10px;margin:16px 0">
-              <?php if ($pctLeft !== null): ?>
-                <div class="progress" style="flex:1 1 200px"><span style="width: <?= (int)$pctLeft ?>%"></span></div>
-              <?php endif; ?>
-              <span class="badge badge-success"><?= (int)$daysLeft ?> day(s)</span>
-            </div>
-            <div style="display:flex;gap:10px;margin-top:16px">
-              <a class="btn" href="subscribe.php">Manage</a>
+          <div style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:1.5rem;">
+            <a href="subscribe.php" class="btn">Manage Plan</a>
+            <?php if ($active): ?>
               <form method="post" action="subscribe.php" onsubmit="return confirm('Cancel the active subscription?');">
                 <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
                 <input type="hidden" name="action" value="cancel_active">
                 <input type="hidden" name="id" value="<?= (int)($active['id'] ?? 0) ?>">
-                <button class="btn" type="submit" style="background:#666">Cancel</button>
+                <button class="btn btn-ghost" type="submit">Cancel</button>
               </form>
-            </div>
-
-          <?php elseif ($pending): ?>
-            <p style="margin:6px 0;color:#9ca3af">
-              <strong style="color:#fff">Pending Request</strong><br>
-              Plan: <?= htmlspecialchars($pending['plan_name']) ?>
-            </p>
-            <div style="display:flex;gap:10px;margin-top:16px">
-              <a class="btn" href="subscribe.php">View</a>
+            <?php elseif ($pending): ?>
               <form method="post" action="subscribe.php" onsubmit="return confirm('Cancel this request?');">
                 <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
                 <input type="hidden" name="action" value="cancel_request">
                 <input type="hidden" name="id" value="<?= (int)($pending['id'] ?? 0) ?>">
-                <button class="btn" type="submit" style="background:#666">Cancel</button>
+                <button class="btn btn-ghost" type="submit">Withdraw Request</button>
               </form>
-            </div>
-
-          <?php else: ?>
-            <p style="margin:6px 0;color:#9ca3af">You don't have an active subscription.</p>
-            <a class="btn" href="subscribe.php" style="margin-top:16px">Choose a Plan</a>
-          <?php endif; ?>
+            <?php else: ?>
+              <a href="subscribe.php" class="btn btn-ghost">Choose Plan</a>
+            <?php endif; ?>
+          </div>
         </div>
       </div>
     </main>

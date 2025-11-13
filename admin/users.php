@@ -654,97 +654,61 @@ foreach ($users as $u) {
         <div class="alert alert-error"><?= htmlspecialchars($err) ?></div>
       <?php endif; ?>
 
-      <!-- Stats -->
-      <div class="stats-grid">
-        <div class="stat-card stat-members">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Total Users</div>
-              <div class="stat-value"><?= count($users) ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="people"></ion-icon>
-            </div>
+      <!-- Modern User Stats -->
+      <div class="users-stats-grid">
+        <div class="users-stat-card" style="--card-gradient: linear-gradient(135deg, #dc2626, #991b1b);">
+          <div class="users-stat-icon-wrapper">
+            <ion-icon name="people"></ion-icon>
           </div>
-          <div class="stat-trend">
-            <ion-icon name="arrow-up"></ion-icon>
-            <span>All system users</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: 100%;"></div>
+          <div class="users-stat-content">
+            <div class="users-stat-value"><?= count($users) ?></div>
+            <div class="users-stat-label">Total Users</div>
           </div>
         </div>
 
-        <div class="stat-card stat-admins">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Admins</div>
-              <div class="stat-value"><?= $admins ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="shield-checkmark"></ion-icon>
-            </div>
+        <div class="users-stat-card" style="--card-gradient: linear-gradient(135deg, #7c3aed, #6d28d9);">
+          <div class="users-stat-icon-wrapper">
+            <ion-icon name="fitness"></ion-icon>
           </div>
-          <div class="stat-trend">
-            <ion-icon name="key"></ion-icon>
-            <span>Full access</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: <?= count($users) > 0 ? round(($admins / count($users) * 100)) : 0 ?>%;"></div>
+          <div class="users-stat-content">
+            <div class="users-stat-value"><?= $coachs ?></div>
+            <div class="users-stat-label">Coaches</div>
           </div>
         </div>
 
-        <div class="stat-card stat-coaches">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Coaches</div>
-              <div class="stat-value"><?= $coachs ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="fitness"></ion-icon>
-            </div>
+        <div class="users-stat-card" style="--card-gradient: linear-gradient(135deg, #059669, #047857);">
+          <div class="users-stat-icon-wrapper">
+            <ion-icon name="person"></ion-icon>
           </div>
-          <div class="stat-trend">
-            <ion-icon name="barbell"></ion-icon>
-            <span>Training staff</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: <?= count($users) > 0 ? round(($coachs / count($users) * 100)) : 0 ?>%;"></div>
-          </div>
-        </div>
-
-        <div class="stat-card stat-members">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Members</div>
-              <div class="stat-value"><?= $members ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="person"></ion-icon>
-            </div>
-          </div>
-          <div class="stat-trend">
-            <ion-icon name="trending-up"></ion-icon>
-            <span>Active members</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: <?= count($users) > 0 ? round(($members / count($users) * 100)) : 0 ?>%;"></div>
+          <div class="users-stat-content">
+            <div class="users-stat-value"><?= $members ?></div>
+            <div class="users-stat-label">Members</div>
           </div>
         </div>
       </div>
 
-      <!-- Form -->
-      <div class="section form-modal">
-        <div class="form-modal-header">
-          <h2 class="form-modal-title">
-            <ion-icon name="<?= $editUser ? 'create' : 'person-add' ?>" style="vertical-align: middle; font-size: 1.75rem; margin-right: 8px;"></ion-icon>
-            <?= $editUser ? 'Edit User' : 'Add New User' ?>
-          </h2>
+      <!-- Professional User Form -->
+      <div class="users-form-card">
+        <div class="users-form-header">
+          <div class="users-form-title-wrapper">
+            <div class="users-form-icon" style="background: linear-gradient(135deg, #dc2626, #991b1b);">
+              <ion-icon name="<?= $editUser ? 'create' : 'person-add' ?>"></ion-icon>
+            </div>
+            <div>
+              <h2 class="users-form-title"><?= $editUser ? 'Edit User' : 'Create New User' ?></h2>
+              <p class="users-form-subtitle"><?= $editUser ? 'Update user information and permissions' : 'Add a new member to your system' ?></p>
+            </div>
+          </div>
           <?php if ($editUser): ?>
-            <a class="btn btn-ghost" href="users.php">
-              <ion-icon name="close" style="vertical-align: middle;"></ion-icon>
-              Cancel
+            <a class="users-cancel-btn" href="users.php">
+              <ion-icon name="close"></ion-icon>
+              <span>Cancel</span>
             </a>
+          <?php else: ?>
+            <div class="users-form-badge">
+              <ion-icon name="sparkles-outline"></ion-icon>
+              <span>Quick Add</span>
+            </div>
           <?php endif; ?>
         </div>
 
@@ -803,29 +767,39 @@ foreach ($users as $u) {
             <input type="password" name="password" <?= $editUser ? '' : 'required' ?> placeholder="<?= $editUser ? 'Enter new password to change' : 'Enter password' ?>">
           </div>
 
-          <div class="full" style="display: flex; gap: 12px; margin-top: 0.5rem;">
-            <button class="btn" type="submit" style="flex: 1;">
-              <ion-icon name="<?= $editUser ? 'checkmark' : 'add' ?>" style="vertical-align: middle; font-size: 1.25rem; margin-right: 4px;"></ion-icon>
-              <?= $editUser ? 'Save Changes' : 'Add User' ?>
+          <div class="full" style="display: flex; gap: 12px; margin-top: 1rem;">
+            <button class="users-submit-btn" type="submit">
+              <span class="btn-shine"></span>
+              <ion-icon name="<?= $editUser ? 'checkmark' : 'add' ?>" style="vertical-align: middle; font-size: 1.25rem; margin-right: 6px;"></ion-icon>
+              <span><?= $editUser ? 'Save Changes' : 'Add User' ?></span>
             </button>
             <?php if (!$editUser): ?>
-              <button type="reset" class="btn btn-ghost" style="flex: 0 0 auto;">
+              <button type="reset" class="users-reset-btn">
                 <ion-icon name="refresh" style="vertical-align: middle;"></ion-icon>
-                Reset
+                <span>Reset</span>
               </button>
             <?php endif; ?>
           </div>
         </form>
       </div>
 
-      <!-- Users List -->
-      <div class="section">
-        <div class="section-header-flex">
-          <h2 class="section-title" style="margin:0;">Users List</h2>
-          <span class="users-count"><?= count($users) ?> total</span>
+      <!-- Modern Users List -->
+      <div class="users-list-section">
+        <div class="users-list-header">
+          <div class="users-list-title-wrapper">
+            <ion-icon name="list-outline"></ion-icon>
+            <div>
+              <h2>Users Directory</h2>
+              <p>Manage all system users and their roles</p>
+            </div>
+          </div>
+          <div class="users-total-badge">
+            <ion-icon name="people"></ion-icon>
+            <span><?= count($users) ?> Users</span>
+          </div>
         </div>
-        <div style="overflow-x:auto">
-          <table>
+        <div class="users-table-wrapper">
+          <table class="users-table">
             <thead>
               <tr>
                 <td style="width:80px">ID</td>

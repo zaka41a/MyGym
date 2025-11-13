@@ -1,87 +1,89 @@
 # 🏋️ MyGym – Gym Management System
 
-Application professionnelle de gestion de salle de sport avec **React frontend** (moderne) et **PHP backend** (APIs REST).
+Professional gym management application with **React frontend** (modern) and **PHP backend** (REST APIs).
+
+![MyGym Documentation](doc/doc.png)
 
 ## 🎨 Architecture
 
-### Frontend React (Moderne - Recommandé)
+### Frontend React (Modern - Recommended)
 - **Framework**: React 18 + TypeScript
 - **Build**: Vite 5.4
-- **Styling**: TailwindCSS avec thème rouge/noir
+- **Styling**: TailwindCSS with red/black theme
 - **State**: Zustand (authentication, navigation)
 - **Router**: React Router v6
 - **Animations**: Framer Motion
 
 ### Backend PHP
-- **APIs REST**: JSON format avec CORS
-- **Auth**: Sessions PHP + bcrypt hashing
+- **REST APIs**: JSON format with CORS
+- **Auth**: PHP Sessions + bcrypt hashing
 - **Database**: MySQL via XAMPP/PDO
 - **Security**: CSRF protection, input validation
 
 ---
 
-## 🚀 Démarrage Rapide
+## 🚀 Quick Start
 
-### Mode Développement (⭐ Recommandé)
+### Development Mode (⭐ Recommended)
 
-**1. Démarrer XAMPP**
+**1. Start XAMPP**
 ```bash
-# Lancer Apache et MySQL depuis XAMPP Control Panel
+# Launch Apache and MySQL from XAMPP Control Panel
 ```
 
-**2. Démarrer React**
+**2. Start React**
 ```bash
 cd /Applications/XAMPP/xamppfiles/htdocs/MyGym/frontend
-npm install    # Première fois seulement
-npm run dev    # Démarre sur http://localhost:5173
+npm install    # First time only
+npm run dev    # Starts on http://localhost:5173
 ```
 
-**3. Accéder à l'application**
-- Frontend React: `http://localhost:5173`
-- APIs Backend: `http://localhost/MyGym/backend/api/`
+**3. Access the application**
+- React Frontend: `http://localhost:5173`
+- Backend APIs: `http://localhost/MyGym/backend/api/`
 
-### Mode Production
+### Production Mode
 
 ```bash
-# Builder React
+# Build React
 cd frontend && npm run build
 
-# Accéder via XAMPP
+# Access via XAMPP
 # http://localhost/MyGym/frontend/
 ```
 
 ---
 
-## 📡 Endpoints API
+## 📡 API Endpoints
 
-### Authentification
-| Endpoint | Méthode | Description |
+### Authentication
+| Endpoint | Method | Description |
 |----------|---------|-------------|
-| `/backend/api/auth/login.php` | POST | Login avec identifier + password |
-| `/backend/api/auth/register.php` | POST | Inscription (fullName, email, password) |
-| `/backend/api/auth/logout.php` | POST | Déconnexion |
-| `/backend/api/auth/me.php` | GET | Récupérer utilisateur actuel |
+| `/backend/api/auth/login.php` | POST | Login with identifier + password |
+| `/backend/api/auth/register.php` | POST | Registration (fullName, email, password) |
+| `/backend/api/auth/logout.php` | POST | Logout |
+| `/backend/api/auth/me.php` | GET | Get current user |
 
 ### Contact
-| Endpoint | Méthode | Description |
+| Endpoint | Method | Description |
 |----------|---------|-------------|
-| `/backend/api/contact.php` | POST | Soumettre formulaire contact |
+| `/backend/api/contact.php` | POST | Submit contact form |
 
 ---
 
-## 🔗 Intégration React + PHP
+## 🔗 React + PHP Integration
 
-### Comment ça marche ?
+### How does it work?
 
-**En développement:**
-- React (port 5173) → Vite proxy → Backend PHP (port 80)
-- Configuration proxy dans `frontend/vite.config.ts`
-- Variables d'environnement dans `frontend/.env`
+**In development:**
+- React (port 5173) → Vite proxy → PHP Backend (port 80)
+- Proxy configuration in `frontend/vite.config.ts`
+- Environment variables in `frontend/.env`
 
-**En production:**
-- Build React dans `frontend/dist/`
-- `frontend/index.php` sert le build via Apache
-- APIs accessibles directement
+**In production:**
+- React build in `frontend/dist/`
+- `frontend/index.php` serves the build via Apache
+- APIs accessible directly
 
 ### Configuration
 
@@ -104,108 +106,121 @@ server: {
 
 ---
 
-## 🎨 Thème Rouge/Noir
+## 🎨 Red/Black Theme
 
-### Couleurs principales
+### Main Colors
 ```css
---color-primary: #dc2626      /* Rouge */
---color-secondary: #7f1d1d    /* Rouge foncé */
---color-bg: #0a0a0a           /* Noir */
---color-bg-muted: #1a1a1a     /* Noir moyen */
+--color-primary: #dc2626      /* Red */
+--color-secondary: #7f1d1d    /* Dark Red */
+--color-bg: #0a0a0a           /* Black */
+--color-bg-muted: #1a1a1a     /* Medium Black */
 ```
 
-### Localisation
+### Location
 - React: `frontend/src/styles/global.css`
-- PHP: Inline CSS dans `index.php`, `login.php`, `register.php`
+- PHP: Inline CSS in `index.php`, `login.php`, `register.php`
 
 ---
 
 ## 🚀 Features
 
-### ✅ Implémentées
-- 🔑 **Authentification complète**
+### ✅ Implemented
+- 🔑 **Complete Authentication**
   - Login/Register React + PHP
-  - Sessions PHP sécurisées
-  - Vérification automatique (whoami)
-  - 3 rôles: ADMIN, COACH, MEMBER
+  - Secure PHP Sessions
+  - Automatic verification (whoami)
+  - 3 roles: ADMIN, COACH, MEMBER
 
-- 🎨 **Interface moderne**
-  - Design rouge/noir professionnel
-  - Animations fluides (Framer Motion)
-  - Responsive mobile-first
+- 🎨 **Modern Interface**
+  - Professional red/black design
+  - Smooth animations (Framer Motion)
+  - Mobile-first responsive
   - Glassmorphism effects
 
-- 🏠 **Pages principales**
-  - Home avec hero, features, pricing, testimonials
-  - Login/Register avec validation
+- 🏠 **Main Pages**
+  - Home with hero, features, pricing, testimonials
+  - Login/Register with validation
   - About, Services, Contact
 
-- 📊 **Dashboards complets** ⭐ NEW!
-  - Dashboard ADMIN (KPIs, activity, stats)
-  - Dashboard COACH (sessions, members, actions)
-  - Dashboard MEMBER (upcoming sessions, progress, recovery)
-  - Sidebar navigation adaptée par rôle
-  - Navbar automatiquement masquée sur dashboard
+- 📊 **Complete Dashboards** ⭐ NEW!
+  - ADMIN Dashboard (KPIs, activity, stats)
+  - COACH Dashboard (sessions, members, actions)
+  - MEMBER Dashboard (upcoming sessions, progress, recovery)
+  - Role-based sidebar navigation
+  - Navbar automatically hidden on dashboard
 
-- 🔌 **APIs REST**
-  - Auth complète (login, register, logout, me)
+- 🔌 **REST APIs**
+  - Complete Auth (login, register, logout, me)
   - Contact form
-  - CORS configuré
+  - CORS configured
 
-### 📋 Prochaines étapes
-- 💳 Pages gestion abonnements (CRUD)
-- 📅 Pages gestion cours (CRUD)
-- 👤 Pages profil utilisateur (edit)
-- 👥 Pages gestion users (ADMIN)
+### 📋 Next Steps
+- 💳 Subscription management pages (CRUD)
+- 📅 Course management pages (CRUD)
+- 👤 User profile pages (edit)
+- 👥 User management pages (ADMIN)
 
 ---
 
-## 📁 Structure du Projet
+## 📁 Project Structure
 
 ```
 MyGym/
 ├── frontend/                 # React App
 │   ├── src/
-│   │   ├── components/      # Composants réutilisables
+│   │   ├── components/      # Reusable components
 │   │   ├── pages/           # Pages (Home, Login, Dashboard)
 │   │   ├── lib/
 │   │   │   ├── api/         # API clients
 │   │   │   ├── store/       # Zustand stores
 │   │   │   └── types/       # TypeScript types
-│   │   └── styles/          # global.css (thème)
-│   ├── dist/                # Build production
-│   ├── index.php            # Entry point XAMPP
+│   │   └── styles/          # global.css (theme)
+│   ├── dist/                # Production build
+│   ├── index.php            # XAMPP entry point
 │   ├── .htaccess            # Apache routing
-│   ├── vite.config.ts       # Config Vite
+│   ├── vite.config.ts       # Vite config
 │   └── package.json
 │
 ├── backend/
-│   ├── api/                 # APIs REST
-│   │   ├── auth/            # Authentification
+│   ├── api/                 # REST APIs
+│   │   ├── auth/            # Authentication
 │   │   ├── bootstrap.php    # Init (CORS, JSON)
 │   │   ├── helpers.php      # Utils
 │   │   └── contact.php
 │   ├── auth.php             # Session management
 │   ├── db.php               # MySQL connection
-│   └── *.php                # Endpoints classiques
+│   └── *.php                # Classic endpoints
 │
-├── admin/                   # Dashboard Admin PHP
-├── coach/                   # Dashboard Coach PHP
-├── member/                  # Dashboard Member PHP
+├── admin/                   # Admin Dashboard PHP
+├── coach/                   # Coach Dashboard PHP
+├── member/                  # Member Dashboard PHP
 │
-├── .htaccess                # Redirections Apache
-├── README.md                # Ce fichier
-└── QUICKSTART.md            # Guide rapide
+├── doc/                     # 📦 Archived files
+│   ├── old_styles/          # Old themes and styles
+│   ├── test_files/          # Test and diagnostic files
+│   ├── backups/             # File backups
+│   └── doc.png              # Documentation image
+│
+├── .htaccess                # Apache redirects
+├── README.md                # This file
+└── QUICKSTART.md            # Quick guide
 ```
+
+### 📦 doc/ Folder
+The `doc/` folder contains archived files not used in the current version:
+- **old_styles/** - Old themes and designs (legacy styles, red theme, special designs)
+- **test_files/** - Test and diagnostic files (colors_summary, diagnose, test_*.php)
+- **backups/** - File backups (index_backup.php)
+- **doc.png** - Project documentation image
 
 ---
 
-## 🛠️ Commandes Utiles
+## 🛠️ Useful Commands
 
-### Développement
+### Development
 ```bash
 cd frontend
-npm install          # Installer dépendances
+npm install          # Install dependencies
 npm run dev          # Dev server (http://localhost:5173)
 npm run lint         # Linter
 npm run test         # Tests
@@ -213,35 +228,35 @@ npm run test         # Tests
 
 ### Production
 ```bash
-npm run build        # Builder pour production
-npm run preview      # Prévisualiser le build
+npm run build        # Build for production
+npm run preview      # Preview the build
 ```
 
 ---
 
-## 🐛 Dépannage
+## 🐛 Troubleshooting
 
-### Port 5173 occupé
+### Port 5173 busy
 ```bash
-# Vite choisira automatiquement 5174
-# Ou libérer le port:
+# Vite will automatically choose 5174
+# Or free the port:
 lsof -ti:5173 | xargs kill -9
 ```
 
-### Erreur "Build Required"
+### "Build Required" Error
 ```bash
 cd frontend && npm run build
-ls -la frontend/dist/  # Vérifier que le build existe
+ls -la frontend/dist/  # Check that the build exists
 ```
 
-### APIs retournent 404
-- ✓ XAMPP Apache démarré
-- ✓ Chemin correct: `http://localhost/MyGym/backend/api/...`
-- ✓ mod_rewrite activé dans Apache
+### APIs return 404
+- ✓ XAMPP Apache started
+- ✓ Correct path: `http://localhost/MyGym/backend/api/...`
+- ✓ mod_rewrite enabled in Apache
 
 ### CORS errors
-- Headers CORS dans `backend/api/bootstrap.php`
-- Origines autorisées: localhost:5173, localhost:5174
+- CORS headers in `backend/api/bootstrap.php`
+- Allowed origins: localhost:5173, localhost:5174
 
 ---
 
@@ -255,7 +270,7 @@ ls -la frontend/dist/  # Vérifier que le build existe
 
 **Backend**
 - PHP 7.4+, MySQL
-- PDO, Sessions natives
+- PDO, Native Sessions
 - Password hashing (bcrypt)
 
 **DevOps**
@@ -264,17 +279,17 @@ ls -la frontend/dist/  # Vérifier que le build existe
 
 ---
 
-## 🎯 Prochaines Étapes
+## 🎯 Next Steps
 
-1. **Migrer dashboards vers React**
-   - Créer pages Dashboard React
-   - APIs pour users, cours, abonnements
-   - Tables et formulaires
+1. **Migrate dashboards to React**
+   - Create React Dashboard pages
+   - APIs for users, courses, subscriptions
+   - Tables and forms
 
-2. **Sécurité**
+2. **Security**
    - Rate limiting
    - Refresh tokens
-   - CSRF pour toutes APIs
+   - CSRF for all APIs
 
 3. **Performance**
    - Cache API queries
@@ -283,14 +298,13 @@ ls -la frontend/dist/  # Vérifier que le build existe
 
 ---
 
-## 📝 URLs Importantes
+## 📝 Important URLs
 
-- **Application React** ⭐: http://localhost:5173 (développement)
-- **Dashboard React**: http://localhost:5173/dashboard (après login)
-- **Production**: http://localhost/MyGym/ (après build)
-- **APIs Backend**: http://localhost/MyGym/backend/api/
-- **Admin Dashboard PHP**: http://localhost/MyGym/admin/ (legacy, à remplacer)
+- **React Application** ⭐: http://localhost:5173 (development)
+- **React Dashboard**: http://localhost:5173/dashboard (after login)
+- **Production**: http://localhost/MyGym/ (after build)
+- **Backend APIs**: http://localhost/MyGym/backend/api/
+- **PHP Admin Dashboard**: http://localhost/MyGym/admin/ (legacy, to be replaced)
 
 ---
 
-**Développé avec ❤️ - Thème Rouge & Noir**

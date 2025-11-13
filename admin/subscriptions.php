@@ -251,54 +251,56 @@ $pendingCount = count($pending);
         <div class="alert alert-error"><?= htmlspecialchars($err) ?></div>
       <?php endif; ?>
 
-      <!-- Stats Grid -->
-      <div class="stats-grid">
-        <div class="stat-card stat-members">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Monthly Revenue</div>
-              <div class="stat-value">€<?= number_format($revMonth/100, 2) ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="cash"></ion-icon>
-            </div>
+      <!-- Modern Subscriptions Stats -->
+      <div class="subs-stats-grid">
+        <div class="subs-stat-card" style="--card-gradient: linear-gradient(135deg, #059669, #047857);">
+          <div class="subs-stat-icon-wrapper">
+            <ion-icon name="cash"></ion-icon>
           </div>
-          <div class="stat-trend">
+          <div class="subs-stat-content">
+            <div class="subs-stat-value">€<?= number_format($revMonth/100, 2) ?></div>
+            <div class="subs-stat-label">Monthly Revenue</div>
+            <div class="subs-stat-desc">Current month earnings</div>
+          </div>
+          <div class="subs-stat-badge" style="background: rgba(5, 150, 105, 0.2); color: #059669;">
             <ion-icon name="trending-up"></ion-icon>
-            <span>Current month revenue</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: 78%;"></div>
+            <span><?= date('M Y') ?></span>
           </div>
         </div>
 
-        <div class="stat-card stat-coaches">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Pending Requests</div>
-              <div class="stat-value"><?= $pendingCount ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="time"></ion-icon>
-            </div>
+        <div class="subs-stat-card" style="--card-gradient: linear-gradient(135deg, #ea580c, #c2410c);">
+          <div class="subs-stat-icon-wrapper">
+            <ion-icon name="time"></ion-icon>
           </div>
-          <div class="stat-trend">
+          <div class="subs-stat-content">
+            <div class="subs-stat-value"><?= $pendingCount ?></div>
+            <div class="subs-stat-label">Pending Requests</div>
+            <div class="subs-stat-desc">Awaiting approval</div>
+          </div>
+          <div class="subs-stat-badge" style="background: rgba(234, 88, 12, 0.2); color: #ea580c;">
             <ion-icon name="hourglass"></ion-icon>
-            <span>Awaiting approval</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: <?= min(100, $pendingCount * 20) ?>%;"></div>
+            <span>Action needed</span>
           </div>
         </div>
       </div>
 
-      <!-- Pending Requests Section -->
-      <div class="section">
-        <div class="section-header">
-          <h2 class="section-title">Pending Requests</h2>
+      <!-- Modern Pending Requests Section -->
+      <div class="subs-pending-section">
+        <div class="subs-pending-header">
+          <div class="subs-pending-title-wrapper">
+            <ion-icon name="hourglass-outline"></ion-icon>
+            <div>
+              <h2>Pending Requests</h2>
+              <p>Review and approve subscription requests</p>
+            </div>
+          </div>
+          <div class="subs-pending-badge">
+            <ion-icon name="alert-circle"></ion-icon>
+            <span><?= $pendingCount ?> Pending</span>
+          </div>
         </div>
-        <div style="overflow-x:auto">
-          <table>
+        <div class="subs-table-wrapper">
+          <table class="subs-table">
             <thead>
               <tr>
                 <td>User</td>
@@ -347,13 +349,23 @@ $pendingCount = count($pending);
         </div>
       </div>
 
-      <!-- Recent History Section -->
-      <div class="section">
-        <div class="section-header">
-          <h2 class="section-title">Recent History</h2>
+      <!-- Modern History Section -->
+      <div class="subs-history-section">
+        <div class="subs-history-header">
+          <div class="subs-history-title-wrapper">
+            <ion-icon name="receipt-outline"></ion-icon>
+            <div>
+              <h2>Subscription History</h2>
+              <p>Recent subscription transactions and changes</p>
+            </div>
+          </div>
+          <div class="subs-history-badge">
+            <ion-icon name="list"></ion-icon>
+            <span><?= count($history) ?> Records</span>
+          </div>
         </div>
-        <div style="overflow-x:auto">
-          <table>
+        <div class="subs-table-wrapper">
+          <table class="subs-table">
             <thead>
               <tr>
                 <td>User</td>

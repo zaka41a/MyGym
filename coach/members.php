@@ -5,6 +5,8 @@ require_once __DIR__ . '/../backend/auth.php';
 requireRole('COACH','ADMIN');
 require_once __DIR__ . '/../backend/db.php';
 
+const COACH_MAX_MEMBERS = 5;
+
 $coach = $_SESSION['user'] ?? null;
 $coachId = (int)($coach['id'] ?? 0);
 $coachName = $coach['fullname'] ?? 'Coach';
@@ -133,11 +135,14 @@ try {
      WHERE cm.coach_id = :c
   ORDER BY u.fullname ASC
   ");
-  $st->execute([':c'=>$coachId]);
-  $myMembers = $st->fetchAll(PDO::FETCH_ASSOC);
+$st->execute([':c'=>$coachId]);
+$myMembers = $st->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) {
   $myMembers = [];
 }
+
+$availableSlots = max(0, COACH_MAX_MEMBERS - $assignedCount);
+$visibleEligible = count($eligible);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -156,23 +161,23 @@ try {
       <div class="logo">
         <svg width="180" height="50" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g transform="translate(5, 15)">
-            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
-            <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
-            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradient1)"/>
-            <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
-            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradientCoach1)"/>
+            <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#4338ca"/>
+            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradientCoach1)"/>
+            <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#4338ca"/>
+            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradientCoach1)"/>
           </g>
-          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradient)" letter-spacing="2">MyGym</text>
-          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#9ca3af" letter-spacing="3">PERFORMANCE CLUB</text>
+          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradientCoach)" letter-spacing="2">MyGym</text>
+          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="3">COACH PORTAL</text>
           <defs>
-            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#dc2626"/>
-              <stop offset="100%" stop-color="#991b1b"/>
+            <linearGradient id="gradientCoach1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="100%" stop-color="#4f46e5"/>
             </linearGradient>
-            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#dc2626"/>
-              <stop offset="50%" stop-color="#ef4444"/>
-              <stop offset="100%" stop-color="#dc2626"/>
+            <linearGradient id="textGradientCoach" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="50%" stop-color="#8b5cf6"/>
+              <stop offset="100%" stop-color="#6366f1"/>
             </linearGradient>
           </defs>
         </svg>
@@ -189,33 +194,74 @@ try {
     </aside>
     <main class="main-content">
       <div class="header">
-        <h1>My Members</h1>
-        <p style="color: #9ca3af;">Manage your assigned members and coaching relationships</p>
-      </div>
-
-      <?php if ($ok): ?><div class="alert ok"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
-      <?php if ($err): ?><div class="alert err"><?= htmlspecialchars($err) ?></div><?php endif; ?>
-
-      <!-- Stats -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-value"><?= (int)$assignedCount ?></div>
-          <div class="stat-label">Assigned Members</div>
+        <div>
+          <h1>My Members</h1>
+          <p style="color:#9ca3af;">Manage assignments and track who is ready for coaching.</p>
         </div>
-        <div class="stat-card">
-          <div class="stat-value"><?= (int)$poolCount ?></div>
-          <div class="stat-label">Available (PLUS/PRO)</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value"><?= (int)count($myMembers) ?></div>
-          <div class="stat-label">Total in List</div>
+        <div class="header-date">
+          <ion-icon name="calendar-outline"></ion-icon>
+          <span><?= date('l, F j') ?></span>
         </div>
       </div>
+
+      <!-- Members Capacity Hero -->
+      <div class="capacity-hero">
+        <div class="capacity-ring-container">
+          <svg class="capacity-ring" width="180" height="180" viewBox="0 0 180 180">
+            <circle cx="90" cy="90" r="75" fill="none" stroke="rgba(99, 102, 241, 0.1)" stroke-width="12"/>
+            <circle cx="90" cy="90" r="75" fill="none" stroke="url(#capacityGradient)" stroke-width="12"
+                    stroke-dasharray="471.24"
+                    stroke-dashoffset="<?= 471.24 - (471.24 * ($assignedCount / COACH_MAX_MEMBERS)) ?>"
+                    stroke-linecap="round"
+                    transform="rotate(-90 90 90)"/>
+            <defs>
+              <linearGradient id="capacityGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#6366f1"/>
+                <stop offset="100%" stop-color="#8b5cf6"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <div class="capacity-ring-text">
+            <div class="capacity-current"><?= $assignedCount ?></div>
+            <div class="capacity-total">/ <?= COACH_MAX_MEMBERS ?></div>
+            <div class="capacity-label">Members</div>
+          </div>
+        </div>
+        <div class="capacity-info">
+          <div class="capacity-info-item">
+            <ion-icon name="briefcase"></ion-icon>
+            <div>
+              <div class="capacity-info-value"><?= $availableSlots ?></div>
+              <div class="capacity-info-label">Available Slots</div>
+            </div>
+          </div>
+          <div class="capacity-info-item">
+            <ion-icon name="medal"></ion-icon>
+            <div>
+              <div class="capacity-info-value"><?= (int)$poolCount ?></div>
+              <div class="capacity-info-label">Eligible Pool (PLUS/PRO)</div>
+            </div>
+          </div>
+          <div class="capacity-info-item">
+            <ion-icon name="eye"></ion-icon>
+            <div>
+              <div class="capacity-info-value"><?= (int)$visibleEligible ?></div>
+              <div class="capacity-info-label">Visible Prospects</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <?php if ($ok): ?><div class="alert alert-success"><ion-icon name="checkmark-circle"></ion-icon><?= htmlspecialchars($ok) ?></div><?php endif; ?>
+      <?php if ($err): ?><div class="alert alert-error"><ion-icon name="alert-circle"></ion-icon><?= htmlspecialchars($err) ?></div><?php endif; ?>
 
       <!-- Eligible members -->
-      <div class="section">
+      <div class="section activity-section">
         <div class="section-header">
-          <h2 class="section-title">Eligible Members (PLUS/PRO, No Coach)</h2>
+          <h2 class="section-title">
+            <ion-icon name="medal"></ion-icon>
+            Eligible Members (PLUS/PRO, No Coach)
+          </h2>
           <span class="badge"><?= (int)$poolCount ?> available</span>
         </div>
         <table>
@@ -246,8 +292,14 @@ try {
       </div>
 
       <!-- My members -->
-      <div class="section">
-        <h2 class="section-title">My Assigned Members</h2>
+      <div class="section activity-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <ion-icon name="people"></ion-icon>
+            My Assigned Members
+          </h2>
+          <span class="badge badge-success"><?= (int)$assignedCount ?> active</span>
+        </div>
         <table>
           <thead>
             <tr><td style="width:70px">ID</td><td>Full Name</td><td>Username</td><td>Email</td><td style="width:140px;text-align:right">Actions</td></tr>
@@ -266,7 +318,7 @@ try {
                   <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
                   <input type="hidden" name="action" value="unassign">
                   <input type="hidden" name="member_id" value="<?= (int)$m['id'] ?>">
-                  <button class="btn btn-dark" type="submit">Remove</button>
+                  <button class="btn btn-ghost" type="submit">Remove</button>
                 </form>
               </td>
             </tr>

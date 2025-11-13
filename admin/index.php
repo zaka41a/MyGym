@@ -164,288 +164,211 @@ $totalUsers = $stmt->fetchColumn();
         </div>
       </div>
 
-      <!-- Stats Grid -->
-      <div class="stats-grid">
-        <div class="stat-card stat-members">
-          <div class="stat-header">
+      <!-- System Overview Panel -->
+      <div class="system-overview-panel">
+        <div class="overview-header">
+          <div class="overview-title-wrapper">
+            <ion-icon name="stats-chart-outline"></ion-icon>
             <div>
-              <div class="stat-label">Total Members</div>
-              <div class="stat-value"><?= number_format($totalMembers) ?></div>
+              <h2>System Overview</h2>
+              <p>Complete breakdown of users by role</p>
             </div>
-            <div class="stat-icon">
+          </div>
+        </div>
+
+        <div class="overview-cards-grid">
+          <!-- Total Users Card -->
+          <div class="overview-card total-card">
+            <div class="overview-card-icon" style="background: linear-gradient(135deg, #dc2626, #991b1b);">
               <ion-icon name="people"></ion-icon>
             </div>
-          </div>
-          <div class="stat-trend">
-            <ion-icon name="trending-up"></ion-icon>
-            <span>+12% this month</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: <?= min(($totalMembers / max($totalUsers, 1)) * 100, 100) ?>%;"></div>
-          </div>
-        </div>
-
-        <div class="stat-card stat-coaches">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Active Coaches</div>
-              <div class="stat-value"><?= number_format($totalCoaches) ?></div>
+            <div class="overview-card-content">
+              <div class="overview-card-value"><?= number_format($totalUsers) ?></div>
+              <div class="overview-card-label">Total Users</div>
+              <div class="overview-card-desc">All system users</div>
             </div>
-            <div class="stat-icon">
+          </div>
+
+          <!-- Admins Card -->
+          <div class="overview-card admin-card">
+            <div class="overview-card-icon" style="background: linear-gradient(135deg, #7c3aed, #6d28d9);">
+              <ion-icon name="shield-checkmark"></ion-icon>
+            </div>
+            <div class="overview-card-content">
+              <?php
+              $adminCount = 0;
+              try {
+                $stmt = $pdo->query("SELECT COUNT(*) FROM users WHERE role = 'ADMIN'");
+                $adminCount = $stmt->fetchColumn();
+              } catch (Throwable $e) {}
+              ?>
+              <div class="overview-card-value"><?= number_format($adminCount) ?></div>
+              <div class="overview-card-label">Admins</div>
+              <div class="overview-card-desc">Full access</div>
+            </div>
+          </div>
+
+          <!-- Coaches Card -->
+          <div class="overview-card coach-card">
+            <div class="overview-card-icon" style="background: linear-gradient(135deg, #ea580c, #c2410c);">
               <ion-icon name="fitness"></ion-icon>
             </div>
-          </div>
-          <div class="stat-trend">
-            <ion-icon name="trending-up"></ion-icon>
-            <span>Professional trainers</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: 100%;"></div>
-          </div>
-        </div>
-
-        <div class="stat-card stat-subscriptions">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Active Subscriptions</div>
-              <div class="stat-value"><?= number_format($activeSubscriptions) ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="card"></ion-icon>
+            <div class="overview-card-content">
+              <div class="overview-card-value"><?= number_format($totalCoaches) ?></div>
+              <div class="overview-card-label">Coaches</div>
+              <div class="overview-card-desc">Training staff</div>
             </div>
           </div>
-          <div class="stat-trend">
-            <ion-icon name="trending-up"></ion-icon>
-            <span>+8% growth</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: <?= min(($activeSubscriptions / max($totalMembers, 1)) * 100, 100) ?>%;"></div>
-          </div>
-        </div>
 
-        <div class="stat-card stat-revenue">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Monthly Revenue</div>
-              <div class="stat-value">$<?= number_format($totalRevenue) ?></div>
+          <!-- Members Card -->
+          <div class="overview-card member-card">
+            <div class="overview-card-icon" style="background: linear-gradient(135deg, #059669, #047857);">
+              <ion-icon name="person"></ion-icon>
             </div>
-            <div class="stat-icon">
-              <ion-icon name="wallet"></ion-icon>
-            </div>
-          </div>
-          <div class="stat-trend positive">
-            <ion-icon name="arrow-up-circle"></ion-icon>
-            <span>Strong performance</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: 92%;"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Actions & Alerts -->
-      <div class="dashboard-row">
-        <!-- Quick Actions -->
-        <div class="quick-actions-panel">
-          <div class="section-header">
-            <h2 class="section-title">Quick Actions</h2>
-          </div>
-          <div class="quick-actions-grid">
-            <a href="users.php" class="quick-action-card">
-              <div class="quick-action-icon">
-                <ion-icon name="person-add"></ion-icon>
-              </div>
-              <div class="quick-action-info">
-                <h3>Add New User</h3>
-                <p>Register members or coaches</p>
-              </div>
-            </a>
-
-            <a href="courses.php" class="quick-action-card">
-              <div class="quick-action-icon">
-                <ion-icon name="add-circle"></ion-icon>
-              </div>
-              <div class="quick-action-info">
-                <h3>Create Class</h3>
-                <p>Schedule new activities</p>
-              </div>
-            </a>
-
-            <a href="subscriptions.php" class="quick-action-card">
-              <div class="quick-action-icon">
-                <ion-icon name="checkmark-done"></ion-icon>
-              </div>
-              <div class="quick-action-info">
-                <h3>Approve Plans</h3>
-                <p><?= $pendingSubscriptions ?> pending approval</p>
-              </div>
-              <?php if ($pendingSubscriptions > 0): ?>
-              <span class="quick-action-badge"><?= $pendingSubscriptions ?></span>
-              <?php endif; ?>
-            </a>
-
-            <a href="subscriptions.php" class="quick-action-card">
-              <div class="quick-action-icon">
-                <ion-icon name="receipt"></ion-icon>
-              </div>
-              <div class="quick-action-info">
-                <h3>View Reports</h3>
-                <p>Analytics & insights</p>
-              </div>
-            </a>
-          </div>
-        </div>
-
-        <!-- Performance Chart -->
-        <div class="performance-chart">
-          <div class="section-header">
-            <h2 class="section-title">Member Growth</h2>
-          </div>
-          <div class="chart-container">
-            <div class="chart-bars">
-              <div class="chart-bar" style="--height: 65%;">
-                <div class="chart-bar-fill"></div>
-                <span class="chart-label">Jan</span>
-              </div>
-              <div class="chart-bar" style="--height: 72%;">
-                <div class="chart-bar-fill"></div>
-                <span class="chart-label">Feb</span>
-              </div>
-              <div class="chart-bar" style="--height: 68%;">
-                <div class="chart-bar-fill"></div>
-                <span class="chart-label">Mar</span>
-              </div>
-              <div class="chart-bar" style="--height: 78%;">
-                <div class="chart-bar-fill"></div>
-                <span class="chart-label">Apr</span>
-              </div>
-              <div class="chart-bar" style="--height: 85%;">
-                <div class="chart-bar-fill"></div>
-                <span class="chart-label">May</span>
-              </div>
-              <div class="chart-bar" style="--height: 92%;">
-                <div class="chart-bar-fill"></div>
-                <span class="chart-label">Jun</span>
-              </div>
-            </div>
-            <div class="chart-stats">
-              <div class="chart-stat">
-                <span class="chart-stat-value"><?= number_format($totalMembers) ?></span>
-                <span class="chart-stat-label">Total Members</span>
-              </div>
-              <div class="chart-stat">
-                <span class="chart-stat-value">+12%</span>
-                <span class="chart-stat-label">Growth Rate</span>
-              </div>
+            <div class="overview-card-content">
+              <div class="overview-card-value"><?= number_format($totalMembers) ?></div>
+              <div class="overview-card-label">Members</div>
+              <div class="overview-card-desc">Active members</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Recent Activity Section -->
-      <div class="dashboard-row">
-        <!-- Recent User Registrations -->
-        <div class="section activity-section">
-          <div class="section-header">
-            <h2 class="section-title">
+      <!-- Modern Quick Actions -->
+      <div class="modern-quick-actions">
+        <div class="quick-actions-header">
+          <ion-icon name="flash-outline"></ion-icon>
+          <h2>Quick Actions</h2>
+        </div>
+
+        <div class="modern-actions-grid">
+          <a href="users.php" class="modern-action-card" style="--card-color: #dc2626;">
+            <div class="modern-action-icon">
               <ion-icon name="person-add-outline"></ion-icon>
-              Recent Registrations
-            </h2>
-            <a href="users.php" class="view-all-link">View All</a>
-          </div>
-          <ul class="activity-list">
-            <?php if (empty($recentUsers)): ?>
-              <li class="activity-item">
-                <div class="activity-info">
-                  <p style="color: #9ca3af;">No recent registrations</p>
-                </div>
-              </li>
-            <?php else: ?>
-              <?php foreach ($recentUsers as $user): ?>
-                <li class="activity-item">
-                  <div class="activity-avatar">
-                    <ion-icon name="person-circle"></ion-icon>
-                  </div>
-                  <div class="activity-info">
-                    <h4><?= htmlspecialchars($user['fullname']) ?></h4>
-                    <p><?= htmlspecialchars($user['email']) ?> • <?= date('M d, Y', strtotime($user['created_at'])) ?></p>
-                  </div>
-                  <span class="badge badge-<?= $user['role'] === 'COACH' ? 'info' : 'success' ?>">
-                    <?= htmlspecialchars($user['role']) ?>
-                  </span>
-                </li>
-              <?php endforeach; ?>
-            <?php endif; ?>
-          </ul>
-        </div>
+            </div>
+            <div class="modern-action-content">
+              <h3>Add User</h3>
+              <p>Register members or coaches</p>
+            </div>
+            <div class="modern-action-arrow">
+              <ion-icon name="arrow-forward"></ion-icon>
+            </div>
+          </a>
 
-        <!-- Recent Class Bookings -->
-        <div class="section activity-section">
-          <div class="section-header">
-            <h2 class="section-title">
+          <a href="courses.php" class="modern-action-card" style="--card-color: #ea580c;">
+            <div class="modern-action-icon">
               <ion-icon name="calendar-outline"></ion-icon>
-              Recent Bookings
-            </h2>
-            <a href="courses.php" class="view-all-link">View All</a>
-          </div>
-          <ul class="activity-list">
-            <?php if (empty($recentBookings)): ?>
-              <li class="activity-item">
-                <div class="activity-info">
-                  <p style="color: #9ca3af;">No recent bookings</p>
-                </div>
-              </li>
-            <?php else: ?>
-              <?php foreach ($recentBookings as $booking): ?>
-                <li class="activity-item">
-                  <div class="activity-avatar">
-                    <ion-icon name="barbell"></ion-icon>
-                  </div>
-                  <div class="activity-info">
-                    <h4><?= htmlspecialchars($booking['fullname']) ?></h4>
-                    <p><?= htmlspecialchars($booking['course_name']) ?> • <?= date('M d, Y', strtotime($booking['created_at'])) ?></p>
-                  </div>
-                  <span class="badge badge-success">Booked</span>
-                </li>
-              <?php endforeach; ?>
+            </div>
+            <div class="modern-action-content">
+              <h3>Create Class</h3>
+              <p>Schedule new activities</p>
+            </div>
+            <div class="modern-action-arrow">
+              <ion-icon name="arrow-forward"></ion-icon>
+            </div>
+          </a>
+
+          <a href="subscriptions.php" class="modern-action-card" style="--card-color: #7c3aed;">
+            <div class="modern-action-icon">
+              <ion-icon name="checkmark-done-outline"></ion-icon>
+            </div>
+            <div class="modern-action-content">
+              <h3>Approve Plans</h3>
+              <p><?= $pendingSubscriptions ?> pending approval</p>
+            </div>
+            <?php if ($pendingSubscriptions > 0): ?>
+              <div class="modern-action-badge"><?= $pendingSubscriptions ?></div>
             <?php endif; ?>
-          </ul>
+            <div class="modern-action-arrow">
+              <ion-icon name="arrow-forward"></ion-icon>
+            </div>
+          </a>
+
+          <a href="subscriptions.php" class="modern-action-card" style="--card-color: #059669;">
+            <div class="modern-action-icon">
+              <ion-icon name="analytics-outline"></ion-icon>
+            </div>
+            <div class="modern-action-content">
+              <h3>View Reports</h3>
+              <p>Analytics & insights</p>
+            </div>
+            <div class="modern-action-arrow">
+              <ion-icon name="arrow-forward"></ion-icon>
+            </div>
+          </a>
         </div>
       </div>
 
-      <!-- Recent Subscriptions -->
-      <div class="section">
-        <div class="section-header">
-          <h2 class="section-title">
-            <ion-icon name="card-outline"></ion-icon>
-            Recent Subscription Approvals
-          </h2>
-          <a href="subscriptions.php" class="view-all-link">View All</a>
+      <!-- Recent Activity Timeline -->
+      <div class="activity-timeline-section">
+        <div class="timeline-header">
+          <div class="timeline-title-wrapper">
+            <ion-icon name="time-outline"></ion-icon>
+            <h2>Recent Activity</h2>
+          </div>
+          <a href="users.php" class="timeline-view-all">
+            <span>View All</span>
+            <ion-icon name="arrow-forward"></ion-icon>
+          </a>
         </div>
-        <ul class="activity-list">
-          <?php if (empty($recentSubs)): ?>
-            <li class="activity-item">
-              <div class="activity-info">
-                <p style="color: #9ca3af;">No recent subscriptions</p>
-              </div>
-            </li>
+
+        <div class="activity-timeline">
+          <?php
+          // Combine recent users and subscriptions
+          $timeline = [];
+          foreach ($recentUsers as $user) {
+            $timeline[] = [
+              'type' => 'user',
+              'time' => $user['created_at'],
+              'data' => $user
+            ];
+          }
+          foreach ($recentSubs as $sub) {
+            $timeline[] = [
+              'type' => 'subscription',
+              'time' => $sub['created_at'],
+              'data' => $sub
+            ];
+          }
+          usort($timeline, function($a, $b) {
+            return strtotime($b['time']) - strtotime($a['time']);
+          });
+          $timeline = array_slice($timeline, 0, 8);
+          ?>
+
+          <?php if (empty($timeline)): ?>
+            <div class="timeline-empty">
+              <ion-icon name="albums-outline"></ion-icon>
+              <p>No recent activity</p>
+            </div>
           <?php else: ?>
-            <?php foreach ($recentSubs as $sub): ?>
-              <li class="activity-item">
-                <div class="activity-avatar">
-                  <ion-icon name="card"></ion-icon>
+            <?php foreach ($timeline as $item): ?>
+              <div class="timeline-item">
+                <div class="timeline-dot" style="--dot-color: <?= $item['type'] === 'user' ? '#dc2626' : '#059669' ?>;"></div>
+                <div class="timeline-content">
+                  <div class="timeline-icon" style="background: <?= $item['type'] === 'user' ? 'rgba(220, 38, 38, 0.1)' : 'rgba(5, 150, 105, 0.1)' ?>;">
+                    <ion-icon name="<?= $item['type'] === 'user' ? 'person-add' : 'card' ?>"></ion-icon>
+                  </div>
+                  <div class="timeline-info">
+                    <h4><?= htmlspecialchars($item['data']['fullname']) ?></h4>
+                    <?php if ($item['type'] === 'user'): ?>
+                      <p>New <?= strtolower($item['data']['role']) ?> registered • <?= htmlspecialchars($item['data']['email']) ?></p>
+                    <?php else: ?>
+                      <p>Subscribed to <?= htmlspecialchars($item['data']['plan_name']) ?> •
+                        <span class="timeline-status status-<?= strtolower($item['data']['status']) ?>">
+                          <?= htmlspecialchars($item['data']['status']) ?>
+                        </span>
+                      </p>
+                    <?php endif; ?>
+                  </div>
+                  <div class="timeline-time">
+                    <?= date('M d, H:i', strtotime($item['time'])) ?>
+                  </div>
                 </div>
-                <div class="activity-info">
-                  <h4><?= htmlspecialchars($sub['fullname']) ?></h4>
-                  <p><?= htmlspecialchars($sub['plan_name']) ?> • <?= date('M d, Y', strtotime($sub['created_at'])) ?></p>
-                </div>
-                <span class="badge badge-<?= $sub['status'] === 'ACTIVE' ? 'success' : ($sub['status'] === 'PENDING' ? 'warning' : 'primary') ?>">
-                  <?= htmlspecialchars($sub['status']) ?>
-                </span>
-              </li>
+              </div>
             <?php endforeach; ?>
           <?php endif; ?>
-        </ul>
+        </div>
       </div>
     </main>
   </div>

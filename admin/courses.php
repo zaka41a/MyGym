@@ -336,80 +336,76 @@ foreach ($sessions as $s) {
         <p style="color: #9ca3af;">View all scheduled sessions and attendance.</p>
       </div>
 
-      <!-- Stats Grid -->
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Total Classes</div>
-              <div class="stat-value"><?= $totalClasses ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="calendar"></ion-icon>
-            </div>
+      <!-- Modern Classes Stats -->
+      <div class="courses-stats-grid">
+        <div class="courses-stat-card" style="--card-gradient: linear-gradient(135deg, #dc2626, #991b1b);">
+          <div class="courses-stat-icon-wrapper">
+            <ion-icon name="calendar"></ion-icon>
           </div>
-          <div class="stat-trend">
+          <div class="courses-stat-content">
+            <div class="courses-stat-value"><?= $totalClasses ?></div>
+            <div class="courses-stat-label">Total Classes</div>
+            <div class="courses-stat-desc">In selected period</div>
+          </div>
+          <div class="courses-stat-badge" style="background: rgba(220, 38, 38, 0.2); color: #dc2626;">
             <ion-icon name="time"></ion-icon>
-            <span>In selected period</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: 85%;"></div>
+            <span><?= htmlspecialchars($start->format('M d')) ?> - <?= htmlspecialchars($end->format('M d')) ?></span>
           </div>
         </div>
 
-        <div class="stat-card">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Active Classes</div>
-              <div class="stat-value"><?= $activeClasses ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="barbell"></ion-icon>
-            </div>
+        <div class="courses-stat-card" style="--card-gradient: linear-gradient(135deg, #7c3aed, #6d28d9);">
+          <div class="courses-stat-icon-wrapper">
+            <ion-icon name="barbell"></ion-icon>
           </div>
-          <div class="stat-trend positive">
+          <div class="courses-stat-content">
+            <div class="courses-stat-value"><?= $activeClasses ?></div>
+            <div class="courses-stat-label">Active Classes</div>
+            <div class="courses-stat-desc">Upcoming sessions</div>
+          </div>
+          <div class="courses-stat-badge" style="background: rgba(124, 58, 237, 0.2); color: #7c3aed;">
             <ion-icon name="trending-up"></ion-icon>
-            <span>Upcoming sessions</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: <?= $totalClasses > 0 ? min(100, ($activeClasses / $totalClasses) * 100) : 0 ?>%;"></div>
+            <span><?= $totalClasses > 0 ? round(($activeClasses / $totalClasses) * 100) : 0 ?>%</span>
           </div>
         </div>
 
-        <div class="stat-card">
-          <div class="stat-header">
-            <div>
-              <div class="stat-label">Total Bookings</div>
-              <div class="stat-value"><?= $totalBookings ?></div>
-            </div>
-            <div class="stat-icon">
-              <ion-icon name="people"></ion-icon>
-            </div>
+        <div class="courses-stat-card" style="--card-gradient: linear-gradient(135deg, #059669, #047857);">
+          <div class="courses-stat-icon-wrapper">
+            <ion-icon name="people"></ion-icon>
           </div>
-          <div class="stat-trend positive">
+          <div class="courses-stat-content">
+            <div class="courses-stat-value"><?= $totalBookings ?></div>
+            <div class="courses-stat-label">Total Bookings</div>
+            <div class="courses-stat-desc"><?= $totalCapacity > 0 ? round(($totalBookings / $totalCapacity) * 100) : 0 ?>% capacity filled</div>
+          </div>
+          <div class="courses-stat-badge" style="background: rgba(5, 150, 105, 0.2); color: #059669;">
             <ion-icon name="checkmark-circle"></ion-icon>
-            <span><?= $totalCapacity > 0 ? round(($totalBookings / $totalCapacity) * 100) : 0 ?>% capacity filled</span>
-          </div>
-          <div class="stat-bar">
-            <div class="stat-bar-fill" style="width: <?= $totalCapacity > 0 ? min(100, ($totalBookings / $totalCapacity) * 100) : 0 ?>%;"></div>
+            <span><?= $totalCapacity ?> slots</span>
           </div>
         </div>
       </div>
 
-      <!-- Sessions Section -->
-      <div class="section">
-        <div class="section-header">
-          <h2 class="section-title">
-            All Sessions (<?= htmlspecialchars($start->format('d/m/Y')) ?> → <?= htmlspecialchars($end->format('d/m/Y')) ?>)
-          </h2>
+      <!-- Modern Sessions Section -->
+      <div class="courses-sessions-section">
+        <div class="courses-sessions-header">
+          <div class="courses-sessions-title-wrapper">
+            <ion-icon name="calendar-outline"></ion-icon>
+            <div>
+              <h2>Class Schedule</h2>
+              <p><?= htmlspecialchars($start->format('M d, Y')) ?> → <?= htmlspecialchars($end->format('M d, Y')) ?></p>
+            </div>
+          </div>
+          <div class="courses-total-badge">
+            <ion-icon name="barbell"></ion-icon>
+            <span><?= count($sessions) ?> Sessions</span>
+          </div>
         </div>
 
         <?php if ($sqlError): ?>
           <div class="alert alert-error">SQL error: <?= htmlspecialchars($sqlError) ?></div>
         <?php endif; ?>
 
-        <div style="overflow-x:auto">
-          <table>
+        <div class="courses-table-wrapper">
+          <table class="courses-table">
             <thead>
               <tr>
                 <td>Schedule</td>

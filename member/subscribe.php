@@ -90,14 +90,32 @@ try {
 }
 
 $daysLeft = null;
+$planProgress = null;
 if ($active && !empty($active['end_date'])) {
   try {
     $end   = new DateTime($active['end_date']);
+    $start = !empty($active['start_date']) ? new DateTime($active['start_date']) : null;
     $today = new DateTime('today');
     $daysLeft = max(0,(int)$today->diff($end)->format('%r%a'));
+    if ($start) {
+      $duration = max(1, (int)$start->diff($end)->format('%r%a'));
+      $planProgress = max(0, min(100, (int)round(($daysLeft / $duration) * 100)));
+    }
   }
-  catch(Throwable $e){ $daysLeft=null; }
+  catch(Throwable $e){
+    $daysLeft = null;
+    $planProgress = null;
+  }
 }
+
+$planName = (string)($active['plan_name'] ?? ($pending['plan_name'] ?? 'No plan selected'));
+$statusLabel = $active ? 'Active plan' : ($pending ? 'Pending approval' : 'No plan');
+$statusHint = $active
+  ? 'You have full access to classes.'
+  : ($pending ? 'Waiting for admin validation.' : 'Pick a plan to unlock the schedule.');
+$accessLabel = $canBook ? 'Unlocked' : 'Locked';
+$accessHint  = $canBook ? 'Class reservations available.' : 'Upgrade to unlock reservations.';
+$daysLabel   = $daysLeft !== null ? $daysLeft . ' day(s)' : '—';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -170,9 +188,9 @@ if ($active && !empty($active['end_date'])) {
     }
 
     .alert.ok {
-      background: rgba(16, 185, 129, 0.15);
-      border-color: #10b981;
-      color: #10b981;
+      background: rgba(239, 68, 68, 0.15);
+      border-color: #ef4444;
+      color: #ef4444;
     }
 
     .alert.err {
@@ -188,14 +206,24 @@ if ($active && !empty($active['end_date'])) {
 
     /* Status Cards Enhanced */
     .status-card {
-      background: rgba(255, 255, 255, 0.05);
-      border: 2px solid rgba(255, 255, 255, 0.1);
-      border-radius: 24px;
-      padding: 2.5rem;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+      padding: 2.5rem 0;
       margin-bottom: 3rem;
       position: relative;
-      overflow: hidden;
+      overflow: visible;
       animation: scaleIn 0.6s ease-out;
+    }
+
+    .status-card::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--member-border), transparent);
     }
 
     @keyframes scaleIn {
@@ -209,32 +237,6 @@ if ($active && !empty($active['end_date'])) {
       }
     }
 
-    .status-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 6px;
-      background: linear-gradient(90deg, #dc2626, #ef4444, #dc2626);
-      background-size: 200% 100%;
-      animation: shimmer 3s linear infinite;
-    }
-
-    @keyframes shimmer {
-      0% { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-
-    .status-card.active::before {
-      background: linear-gradient(90deg, #10b981, #34d399, #10b981);
-      background-size: 200% 100%;
-    }
-
-    .status-card.pending::before {
-      background: linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b);
-      background-size: 200% 100%;
-    }
 
     .days-badge {
       display: inline-flex;
@@ -280,8 +282,8 @@ if ($active && !empty($active['end_date'])) {
     }
 
     .plan-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 2px solid rgba(255, 255, 255, 0.1);
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
       border-radius: 24px;
       padding: 2.5rem;
       transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -290,6 +292,7 @@ if ($active && !empty($active['end_date'])) {
       transform-style: preserve-3d;
       animation: fadeInUp 0.6s ease-out;
       animation-fill-mode: both;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
     @keyframes fadeInUp {
@@ -310,8 +313,8 @@ if ($active && !empty($active['end_date'])) {
     /* Recommended Badge */
     .plan-card.recommended {
       border-color: #dc2626;
-      background: rgba(220, 38, 38, 0.05);
-      box-shadow: 0 0 40px rgba(220, 38, 38, 0.3);
+      background: #ffffff;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.15), 0 0 0 2px #dc2626;
       transform: scale(1.05);
     }
 
@@ -341,7 +344,7 @@ if ($active && !empty($active['end_date'])) {
       position: absolute;
       top: -12px;
       left: 20px;
-      background: linear-gradient(135deg, #10b981, #34d399);
+      background: linear-gradient(135deg, #ef4444, #ffffff);
       color: white;
       padding: 0.5rem 1.5rem;
       border-radius: 20px;
@@ -349,7 +352,7 @@ if ($active && !empty($active['end_date'])) {
       font-weight: 800;
       letter-spacing: 0.1em;
       text-transform: uppercase;
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.5);
       display: flex;
       align-items: center;
       gap: 0.5rem;
@@ -373,35 +376,50 @@ if ($active && !empty($active['end_date'])) {
     .plan-header {
       text-align: center;
       padding-bottom: 2rem;
-      border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+      border-bottom: 1px solid #e5e7eb;
       margin-bottom: 2rem;
     }
 
     .plan-icon {
-      width: 80px;
-      height: 80px;
+      width: 90px;
+      height: 90px;
       margin: 0 auto 1.5rem;
-      background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(239, 68, 68, 0.2));
+      background: transparent;
+      border: 3px solid var(--plan-color, #dc2626);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 2.5rem;
-      color: #dc2626;
-      transition: all 0.4s;
-      box-shadow: 0 8px 24px rgba(220, 38, 38, 0.2);
+      font-size: 3rem;
+      color: var(--plan-color, #dc2626);
+      transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .plan-icon::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle, var(--plan-color, #dc2626) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.5s;
     }
 
     .plan-card:hover .plan-icon {
-      transform: rotateY(360deg) scale(1.1);
-      box-shadow: 0 12px 32px rgba(220, 38, 38, 0.4);
+      transform: rotateY(360deg) scale(1.15);
+      box-shadow: 0 0 40px var(--plan-color, #dc2626);
+    }
+
+    .plan-card:hover .plan-icon::before {
+      opacity: 0.2;
     }
 
     .plan-name {
       font-size: 2rem;
       font-weight: 800;
       margin-bottom: 0.5rem;
-      color: #fff;
+      color: #1e293b;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -476,7 +494,7 @@ if ($active && !empty($active['end_date'])) {
     }
 
     .plan-features ion-icon {
-      color: #10b981;
+      color: #ef4444;
       font-size: 1.5rem;
       flex-shrink: 0;
       margin-top: 0.1rem;
@@ -577,23 +595,23 @@ if ($active && !empty($active['end_date'])) {
       <div class="logo">
         <svg width="180" height="50" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g transform="translate(5, 15)">
-            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradientMember1)"/>
             <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
-            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradient1)"/>
+            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradientMember1)"/>
             <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
-            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradientMember1)"/>
           </g>
-          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradient)" letter-spacing="2">MyGym</text>
-          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#9ca3af" letter-spacing="3">PERFORMANCE CLUB</text>
+          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradientMember)" letter-spacing="2">MyGym</text>
+          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="3">MEMBER SPACE</text>
           <defs>
-            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#dc2626"/>
-              <stop offset="100%" stop-color="#991b1b"/>
-            </linearGradient>
-            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#dc2626"/>
-              <stop offset="50%" stop-color="#ef4444"/>
+            <linearGradient id="gradientMember1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ef4444"/>
               <stop offset="100%" stop-color="#dc2626"/>
+            </linearGradient>
+            <linearGradient id="textGradientMember" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#ef4444"/>
+              <stop offset="50%" stop-color="#f87171"/>
+              <stop offset="100%" stop-color="#ef4444"/>
             </linearGradient>
           </defs>
         </svg>
@@ -616,10 +634,51 @@ if ($active && !empty($active['end_date'])) {
     </aside>
     <main class="main-content">
       <div class="header">
-        <h1>My Subscription</h1>
-        <p style="color: #9ca3af;">Manage your membership plan and benefits</p>
+        <div>
+          <h1>Membership Plans</h1>
+          <p style="color:#9ca3af;">Review your status and upgrade whenever you're ready.</p>
+        </div>
+        <div class="header-date">
+          <ion-icon name="calendar-outline"></ion-icon>
+          <span><?= date('l, F j') ?></span>
+        </div>
       </div>
 
+      <!-- Subscription Status Hero -->
+      <div class="subscription-status-hero">
+        <div class="subscription-hero-main">
+          <div class="subscription-hero-icon">
+            <ion-icon name="trophy"></ion-icon>
+          </div>
+          <div class="subscription-hero-content">
+            <div class="subscription-hero-plan"><?= htmlspecialchars($planName) ?></div>
+            <div class="subscription-hero-label">Current Membership</div>
+            <div class="subscription-hero-status <?= $active ? 'active' : 'inactive' ?>">
+              <ion-icon name="<?= $active ? 'checkmark-circle' : ($pending ? 'time' : 'alert-circle') ?>"></ion-icon>
+              <?= htmlspecialchars($statusLabel) ?>
+            </div>
+          </div>
+        </div>
+
+        <div class="subscription-hero-divider"></div>
+
+        <div class="subscription-hero-stats">
+          <div class="subscription-hero-stat">
+            <ion-icon name="calendar-outline"></ion-icon>
+            <div>
+              <div class="subscription-stat-value"><?= htmlspecialchars($daysLabel) ?></div>
+              <div class="subscription-stat-label">Remaining</div>
+            </div>
+          </div>
+          <div class="subscription-hero-stat">
+            <ion-icon name="<?= $canBook ? 'lock-open' : 'lock-closed' ?>"></ion-icon>
+            <div>
+              <div class="subscription-stat-value"><?= $accessLabel ?></div>
+              <div class="subscription-stat-label">Class Access</div>
+            </div>
+          </div>
+        </div>
+      </div>
       <?php if ($ok): ?><div class="alert ok"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
       <?php if ($err): ?><div class="alert err"><?= htmlspecialchars($err) ?></div><?php endif; ?>
 
@@ -682,20 +741,54 @@ if ($active && !empty($active['end_date'])) {
       <?php else: ?>
         <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1.5rem">Choose Your Plan</h2>
         <div class="plans-grid">
-          <?php foreach ($plans as $p): ?>
-            <div class="plan-card">
-              <div class="plan-name"><?= htmlspecialchars($p['name']) ?></div>
+          <?php
+          $planIcons = [
+            'BASIC' => 'walk-outline',
+            'PLUS' => 'fitness-outline',
+            'PRO' => 'trophy-outline'
+          ];
+          $planColors = [
+            'BASIC' => '#94a3b8',
+            'PLUS' => '#ef4444',
+            'PRO' => '#dc2626'
+          ];
+          $planIndex = 0;
+          foreach ($plans as $p):
+            $planIndex++;
+            $planNameUpper = strtoupper($p['name']);
+            $iconName = $planIcons[$planNameUpper] ?? 'star-outline';
+            $planColor = $planColors[$planNameUpper] ?? '#ef4444';
+            $isRecommended = $planNameUpper === 'PLUS';
+          ?>
+            <div class="plan-card <?= $isRecommended ? 'recommended' : '' ?>">
+              <?php if ($isRecommended): ?>
+                <div class="recommended-badge">⭐ MOST POPULAR</div>
+              <?php endif; ?>
+
+              <div class="plan-header">
+                <div class="plan-icon" style="--plan-color: <?= $planColor ?>;">
+                  <ion-icon name="<?= $iconName ?>"></ion-icon>
+                </div>
+                <div class="plan-name"><?= htmlspecialchars($p['name']) ?></div>
+                <div class="plan-subtitle">Perfect for <?= $planNameUpper === 'BASIC' ? 'beginners' : ($planNameUpper === 'PLUS' ? 'enthusiasts' : 'professionals') ?></div>
+              </div>
+
               <div class="plan-price">$<?= number_format($p['price_cents']/100, 0) ?><span>/month</span></div>
+
               <ul class="plan-features">
                 <?php foreach (explode("\n", (string)$p['features']) as $f): if(trim($f)==='') continue; ?>
                   <li><ion-icon name="checkmark-circle"></ion-icon><?= htmlspecialchars(ltrim($f, "- ")) ?></li>
                 <?php endforeach; ?>
               </ul>
+
               <form method="post">
                 <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
                 <input type="hidden" name="action" value="choose_plan">
                 <input type="hidden" name="plan_id" value="<?= (int)$p['id'] ?>">
-                <button class="btn" type="submit">Choose <?= htmlspecialchars($p['name']) ?></button>
+                <button class="btn <?= $isRecommended ? 'btn-primary' : '' ?>" type="submit">
+                  <ion-icon name="rocket-outline"></ion-icon>
+                  Choose <?= htmlspecialchars($p['name']) ?>
+                </button>
               </form>
             </div>
           <?php endforeach; ?>

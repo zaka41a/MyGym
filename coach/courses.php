@@ -135,8 +135,8 @@ try {
     ORDER BY s.start_at DESC
     LIMIT 20
   ");
-  $st2->execute([':c'=>$coachId]);
-  $past = $st2->fetchAll(PDO::FETCH_ASSOC);
+$st2->execute([':c'=>$coachId]);
+$past = $st2->fetchAll(PDO::FETCH_ASSOC);
 } catch(Throwable $e){
   $upcoming = $past = [];
 }
@@ -152,6 +152,18 @@ function hm_range(?string $s, ?string $e): string {
     return $ee ? "$ss → $ee" : $ss;
   } catch(Throwable $e){ return '—'; }
 }
+
+$upcomingCount = count($upcoming);
+$pastCount = count($past);
+$totalUpcomingCapacity = 0;
+$totalUpcomingBooked = 0;
+foreach ($upcoming as $row) {
+  $totalUpcomingCapacity += (int)($row['capacity'] ?? 0);
+  $totalUpcomingBooked += (int)($row['booked'] ?? 0);
+}
+$utilization = $totalUpcomingCapacity > 0
+  ? (int)round(($totalUpcomingBooked / $totalUpcomingCapacity) * 100)
+  : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -170,23 +182,23 @@ function hm_range(?string $s, ?string $e): string {
       <div class="logo">
         <svg width="180" height="50" viewBox="0 0 220 60" fill="none" xmlns="http://www.w3.org/2000/svg">
           <g transform="translate(5, 15)">
-            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
-            <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
-            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradient1)"/>
-            <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#7f1d1d"/>
-            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradient1)"/>
+            <rect x="0" y="5" width="6" height="20" rx="1.5" fill="url(#gradientCoach1)"/>
+            <rect x="6" y="8" width="2" height="14" rx="0.5" fill="#4338ca"/>
+            <rect x="8" y="12" width="34" height="6" rx="3" fill="url(#gradientCoach1)"/>
+            <rect x="42" y="8" width="2" height="14" rx="0.5" fill="#4338ca"/>
+            <rect x="44" y="5" width="6" height="20" rx="1.5" fill="url(#gradientCoach1)"/>
           </g>
-          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradient)" letter-spacing="2">MyGym</text>
-          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#9ca3af" letter-spacing="3">PERFORMANCE CLUB</text>
+          <text x="65" y="32" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="28" font-weight="900" fill="url(#textGradientCoach)" letter-spacing="2">MyGym</text>
+          <text x="65" y="46" font-family="system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" font-size="10" font-weight="600" fill="#94a3b8" letter-spacing="3">COACH PORTAL</text>
           <defs>
-            <linearGradient id="gradient1" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#dc2626"/>
-              <stop offset="100%" stop-color="#991b1b"/>
+            <linearGradient id="gradientCoach1" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="100%" stop-color="#4f46e5"/>
             </linearGradient>
-            <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#dc2626"/>
-              <stop offset="50%" stop-color="#ef4444"/>
-              <stop offset="100%" stop-color="#dc2626"/>
+            <linearGradient id="textGradientCoach" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#6366f1"/>
+              <stop offset="50%" stop-color="#8b5cf6"/>
+              <stop offset="100%" stop-color="#6366f1"/>
             </linearGradient>
           </defs>
         </svg>
@@ -203,58 +215,217 @@ function hm_range(?string $s, ?string $e): string {
     </aside>
     <main class="main-content">
       <div class="header">
-        <h1>My Classes</h1>
-        <p style="color: #9ca3af;">Manage your class schedule and availability</p>
+        <div>
+          <h1>My Classes</h1>
+          <p style="color:#9ca3af;">Manage your schedule, capacity, and attendance.</p>
+        </div>
+        <div class="header-date">
+          <ion-icon name="calendar-outline"></ion-icon>
+          <span><?= date('l, F j') ?></span>
+        </div>
       </div>
 
-      <?php if ($ok): ?><div class="alert ok"><?= htmlspecialchars($ok) ?></div><?php endif; ?>
-      <?php if ($err): ?><div class="alert err"><?= htmlspecialchars($err) ?></div><?php endif; ?>
+      <!-- Schedule Overview Hero -->
+      <div class="schedule-hero">
+        <div class="schedule-stat">
+          <div class="schedule-stat-icon" style="--color: #6366f1;">
+            <ion-icon name="calendar"></ion-icon>
+          </div>
+          <div class="schedule-stat-info">
+            <div class="schedule-stat-value"><?= $upcomingCount ?></div>
+            <div class="schedule-stat-label">Upcoming</div>
+          </div>
+        </div>
+        <div class="schedule-divider"></div>
+        <div class="schedule-stat">
+          <div class="schedule-stat-icon" style="--color: #8b5cf6;">
+            <ion-icon name="time"></ion-icon>
+          </div>
+          <div class="schedule-stat-info">
+            <div class="schedule-stat-value"><?= $pastCount ?></div>
+            <div class="schedule-stat-label">Completed</div>
+          </div>
+        </div>
+        <div class="schedule-divider"></div>
+        <div class="schedule-stat">
+          <div class="schedule-stat-icon" style="--color: #ec4899;">
+            <ion-icon name="people"></ion-icon>
+          </div>
+          <div class="schedule-stat-info">
+            <div class="schedule-stat-value"><?= $utilization ?>%</div>
+            <div class="schedule-stat-label">Utilization</div>
+          </div>
+        </div>
+        <div class="schedule-divider"></div>
+        <div class="schedule-stat">
+          <div class="schedule-stat-icon" style="--color: #10b981;">
+            <ion-icon name="checkmark-circle"></ion-icon>
+          </div>
+          <div class="schedule-stat-info">
+            <div class="schedule-stat-value"><?= (int)max(0, $totalUpcomingCapacity - $totalUpcomingBooked) ?></div>
+            <div class="schedule-stat-label">Available Seats</div>
+          </div>
+        </div>
+      </div>
 
-      <!-- Add slot form -->
-      <div class="section">
-        <h2 class="section-title">Add a new slot</h2>
-        <form method="post" class="form-grid">
+      <?php if ($ok): ?><div class="alert alert-success"><ion-icon name="checkmark-circle"></ion-icon><?= htmlspecialchars($ok) ?></div><?php endif; ?>
+      <?php if ($err): ?><div class="alert alert-error"><ion-icon name="alert-circle"></ion-icon><?= htmlspecialchars($err) ?></div><?php endif; ?>
+
+      <!-- Professional Add Slot Form -->
+      <div class="add-slot-card">
+        <div class="add-slot-header">
+          <div class="add-slot-title-wrapper">
+            <div class="add-slot-icon">
+              <ion-icon name="add-circle-outline"></ion-icon>
+            </div>
+            <div>
+              <h2 class="add-slot-title">Create New Session</h2>
+              <p class="add-slot-subtitle">Schedule a new class for your members</p>
+            </div>
+          </div>
+          <div class="add-slot-badge">
+            <ion-icon name="sparkles-outline"></ion-icon>
+            <span>Quick Add</span>
+          </div>
+        </div>
+
+        <form method="post" class="add-slot-form">
           <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
           <input type="hidden" name="action" value="create">
 
-          <div>
-            <label>Activity (select or create new)</label>
-            <select name="activity_id">
-              <option value="">—</option>
-              <?php foreach ($activities as $a): ?>
-                <option value="<?= (int)$a['id'] ?>"><?= htmlspecialchars($a['name']) ?></option>
-              <?php endforeach; ?>
-            </select>
-            <small>or enter new activity below</small>
-            <input name="activity_name" placeholder="New activity name">
+          <!-- Activity Selection Section -->
+          <div class="form-section">
+            <div class="form-section-label">
+              <ion-icon name="barbell-outline"></ion-icon>
+              <span>Activity Type</span>
+            </div>
+
+            <div class="activity-selector">
+              <div class="input-wrapper">
+                <div class="input-icon">
+                  <ion-icon name="list-outline"></ion-icon>
+                </div>
+                <select name="activity_id" id="activitySelect" class="styled-select" onchange="toggleNewActivity(this.value)">
+                  <option value="">Select existing activity</option>
+                  <?php foreach ($activities as $a): ?>
+                    <option value="<?= (int)$a['id'] ?>"><?= htmlspecialchars($a['name']) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+
+              <div class="activity-divider">
+                <span>or</span>
+              </div>
+
+              <div class="input-wrapper" id="newActivityWrapper">
+                <div class="input-icon">
+                  <ion-icon name="create-outline"></ion-icon>
+                </div>
+                <input
+                  type="text"
+                  name="activity_name"
+                  id="newActivityInput"
+                  class="styled-input"
+                  placeholder="Create new activity (e.g., Yoga, Spinning)"
+                  onfocus="document.getElementById('activitySelect').value=''"
+                >
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label>Date</label>
-            <input type="date" name="date" required>
-          </div>
-          <div>
-            <label>Start time</label>
-            <input type="time" name="start" required>
-          </div>
-          <div>
-            <label>End time</label>
-            <input type="time" name="end">
-          </div>
-          <div>
-            <label>Capacity</label>
-            <input type="number" min="0" name="capacity" value="15">
+          <!-- Date & Time Section -->
+          <div class="form-section">
+            <div class="form-section-label">
+              <ion-icon name="time-outline"></ion-icon>
+              <span>Date & Time</span>
+            </div>
+
+            <div class="datetime-grid">
+              <div class="input-wrapper">
+                <div class="input-icon">
+                  <ion-icon name="calendar-outline"></ion-icon>
+                </div>
+                <div class="input-content">
+                  <label class="floating-label">Session Date</label>
+                  <input type="date" name="date" class="styled-input" required>
+                </div>
+              </div>
+
+              <div class="input-wrapper">
+                <div class="input-icon">
+                  <ion-icon name="play-outline"></ion-icon>
+                </div>
+                <div class="input-content">
+                  <label class="floating-label">Start Time</label>
+                  <input type="time" name="start" class="styled-input" required>
+                </div>
+              </div>
+
+              <div class="input-wrapper">
+                <div class="input-icon">
+                  <ion-icon name="stop-outline"></ion-icon>
+                </div>
+                <div class="input-content">
+                  <label class="floating-label">End Time</label>
+                  <input type="time" name="end" class="styled-input">
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div style="grid-column: 1/-1; margin-top: 0.5rem;">
-            <button class="btn" type="submit">Add slot</button>
+          <!-- Capacity Section -->
+          <div class="form-section">
+            <div class="form-section-label">
+              <ion-icon name="people-outline"></ion-icon>
+              <span>Capacity</span>
+            </div>
+
+            <div class="capacity-selector">
+              <div class="input-wrapper">
+                <div class="input-icon">
+                  <ion-icon name="person-outline"></ion-icon>
+                </div>
+                <div class="input-content">
+                  <label class="floating-label">Max Participants</label>
+                  <input type="number" min="1" max="50" name="capacity" value="15" class="styled-input" required>
+                </div>
+              </div>
+              <div class="capacity-presets">
+                <button type="button" class="preset-btn" onclick="document.querySelector('input[name=capacity]').value=10">10</button>
+                <button type="button" class="preset-btn" onclick="document.querySelector('input[name=capacity]').value=15">15</button>
+                <button type="button" class="preset-btn" onclick="document.querySelector('input[name=capacity]').value=20">20</button>
+                <button type="button" class="preset-btn" onclick="document.querySelector('input[name=capacity]').value=30">30</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Submit Button -->
+          <div class="form-actions">
+            <button type="submit" class="btn-create-slot">
+              <ion-icon name="checkmark-circle-outline"></ion-icon>
+              <span>Create Session</span>
+              <div class="btn-shine"></div>
+            </button>
           </div>
         </form>
       </div>
 
-      <!-- Upcoming classes -->
-      <div class="section">
-        <h2 class="section-title">Upcoming classes</h2>
+      <script>
+        function toggleNewActivity(value) {
+          const newInput = document.getElementById('newActivityInput');
+          if (value !== '') {
+            newInput.value = '';
+          }
+        }
+      </script>
+
+      <div class="section activity-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <ion-icon name="calendar-outline"></ion-icon>
+            Upcoming classes
+          </h2>
+        </div>
         <table>
           <thead><tr><td>Date & Time</td><td>Period</td><td>Activity</td><td>Bookings</td><td>Actions</td></tr></thead>
           <tbody>
@@ -271,7 +442,7 @@ function hm_range(?string $s, ?string $e): string {
                   <input type="hidden" name="csrf" value="<?= htmlspecialchars($CSRF) ?>">
                   <input type="hidden" name="action" value="delete">
                   <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
-                  <button class="btn btn-dark" type="submit">Delete</button>
+                  <button class="btn btn-ghost" type="submit">Delete</button>
                 </form>
               </td>
             </tr>
@@ -280,14 +451,18 @@ function hm_range(?string $s, ?string $e): string {
         </table>
       </div>
 
-      <!-- Past classes -->
-      <div class="section">
-        <h2 class="section-title">Past classes (last 20)</h2>
+      <div class="section activity-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <ion-icon name="time"></ion-icon>
+            Past classes (last 20)
+          </h2>
+        </div>
         <table>
           <thead><tr><td>Date & Time</td><td>Period</td><td>Activity</td><td>Attendees</td></tr></thead>
           <tbody>
           <?php if (!$past): ?>
-            <tr><td colspan="4" style="color:#6b7280;text-align:center;padding:2rem">No past classes</td></tr>
+                <tr><td colspan="4" style="color:#6b7280;text-align:center;padding:2rem">No past classes</td></tr>
           <?php else: foreach ($past as $s): ?>
             <tr>
               <td><?= dmy_hm($s['start_at']) ?></td>
