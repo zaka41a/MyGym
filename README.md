@@ -1,8 +1,12 @@
+<div align="center">
+  
 # 🏋️ MyGym – Gym Management System
 
 Professional gym management application with **React frontend** (modern) and **PHP backend** (REST APIs).
 
 ![MyGym Documentation](doc/doc.png)
+
+</div>
 
 ## 🎨 Architecture
 
